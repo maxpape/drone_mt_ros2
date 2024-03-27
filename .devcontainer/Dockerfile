@@ -28,3 +28,4 @@ RUN rosdep update
 
 # Source the ROS setup file
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
+RUN echo "source /drone_mt_ros2/ros/install/local_setup.bash" >> ~/.bashrc

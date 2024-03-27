@@ -14,7 +14,7 @@ bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
 cd PX4-Autopilot/
 DONT_RUN = 1 make px4_sitl gz_x500
 
-cd /px4_ros2
+cd /drone_mt_ros2
 git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
 cd Micro-XRCE-DDS-Agent
 mkdir build
