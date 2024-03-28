@@ -2,16 +2,21 @@
 
 import rclpy
 import numpy as np
+import scipy.linalg
+import scipy.interpolate
+from casadi import vertcat
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus, ActuatorMotors
-
+from rcl_interfaces.msg import ParameterDescriptor, ParameterType, FloatingPointRange
+from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
+from drone_model import export_drone_ode_model
 
 class OffboardControl(Node):
     """Node for controlling a vehicle in offboard mode."""
 
     def __init__(self) -> None:
-        super().__init__('offboard_control_takeoff_and_land')
+        super().__init__('offboard_control_nmpc')
 
         # Configure QoS profile for publishing and subscribing
         qos_profile = QoSProfile(
@@ -24,8 +29,6 @@ class OffboardControl(Node):
         # Create publishers
         self.offboard_control_mode_publisher = self.create_publisher(
             OffboardControlMode, '/fmu/in/offboard_control_mode', qos_profile)
-        self.trajectory_setpoint_publisher = self.create_publisher(
-            TrajectorySetpoint, '/fmu/in/trajectory_setpoint', qos_profile)
         self.vehicle_command_publisher = self.create_publisher(
             VehicleCommand, '/fmu/in/vehicle_command', qos_profile)
         self.motor_command_publisher = self.create_publisher(
@@ -41,10 +44,100 @@ class OffboardControl(Node):
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-        self.takeoff_height = -5.0
+       
 
         # Create a timer to publish control commands
-        self.timer = self.create_timer(0.1, self.timer_callback2)
+        self.timer = self.create_timer(0.1, self.timer_callback)
+        
+        
+        
+        # Declare a parameter with a descriptor for dynamic reconfiguration
+        motor_speed_descriptor = ParameterDescriptor(
+            type=ParameterType.PARAMETER_DOUBLE,  # Specify the type as double
+            description='Speed of the motor',     # Description of the parameter
+            additional_constraints='Range: -1.0 to 1.0',
+            floating_point_range=[FloatingPointRange(
+                from_value=-1.0,  # Minimum value
+                to_value=1.0,     # Maximum value
+                step=0.01         # Step size (optional)
+            )]# Constraints (optional)
+        )
+        
+        self.declare_parameters(
+        namespace='',
+        parameters=[
+            ('motor_speed_0', 0.0, motor_speed_descriptor),
+            ('motor_speed_1', 0.0, motor_speed_descriptor),
+            ('motor_speed_2', 0.0, motor_speed_descriptor),
+            ('motor_speed_3', 0.0, motor_speed_descriptor)
+        ]
+        )
+        
+        
+        self.speed = np.zeros(4)
+        self.N_horizon = 100
+        self.Tf = 2
+        self.nx = 13
+        self.nu = 4
+        self.m = 1.5
+        self.g = 9.81
+        self.J = np.asarray([[0.029125, 0, 0],[0,0.029125,0],[0,0,0.055225]])
+        self.P = np.asarray([[-0.107, -0.107, 0.107, 0.107],[0.0935, -0.0935, -0.0935, 0.0935],[-0.000806428, 0.000806428, -0.000806428, 0.000806428]])
+        self.current_state = np.zeros(13)
+        self.ocp_solver = None
+        self.pos_setpoint = np.zeros(3)
+        
+    def setup_mpc(self):
+        ocp = AcadosOcp()
+        
+        
+        # set model
+        model = export_drone_ode_model()
+        ocp.model = model
+
+        nx = model.x.size()[0]
+        nu = model.u.size()[0]
+        ny = nx + nu
+        ny_e = nx
+
+        ocp.dims.N = self.N_horizon
+    
+        # set cost module
+        ocp.cost.cost_type = 'NONLINEAR_LS'
+        ocp.cost.cost_type_e = 'NONLINEAR_LS'
+        
+        Q_mat = np.zeros((9,9))
+        Q_mat[0,0] = 2
+        Q_mat[1,1] = 2
+        Q_mat[2,2] = 4
+        
+        R_mat = np.eye(3)
+
+        ocp.cost.W = scipy.linalg.block_diag(Q_mat, R_mat)
+        ocp.cost.W_e = Q_mat
+
+        ocp.model.cost_y_expr = vertcat(model.x, model.u)
+        ocp.model.cost_y_expr_e = model.x
+
+        yref = np.zeros((ny, ))
+        ocp.cost.yref  = yref
+
+        yref_e = np.zeros((ny_e, ))
+        ocp.cost.yref_e = yref_e
+        
+        aMax = self.aMax
+        vMax = self.vMax
+        # set constraints
+        ocp.constraints.lbu = np.array([-aMax, -aMax, -aMax])
+        ocp.constraints.ubu = np.array([+aMax, +aMax, +aMax])
+    
+        ocp.constraints.lbx = np.array([-vMax, -vMax, -vMax, -aMax, -aMax, -aMax])
+        ocp.constraints.ubx = np.array([+vMax, +vMax, +vMax, +aMax, +aMax, +aMax])
+            
+        ocp.constraints.x0 = self.current_state
+        ocp.constraints.idxbu = np.array([0, 1, 2])
+        ocp.constraints.idxbx = np.array([3, 4, 5, 6, 7, 8])    
+        
 
     def vehicle_local_position_callback(self, vehicle_local_position):
         """Callback function for vehicle_local_position topic subscriber."""
@@ -89,29 +182,20 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.offboard_control_mode_publisher.publish(msg)
 
-    def publish_position_setpoint(self, x: float, y: float, z: float):
-        """Publish the trajectory setpoint."""
-        msg = TrajectorySetpoint()
-        msg.position = [x, y, z]
-        msg.yaw = 1.57079  # (90 degree)
-        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-        self.trajectory_setpoint_publisher.publish(msg)
-        self.get_logger().info(f"Publishing position setpoints {[x, y, z]}")
+    
 
-    def publish_motor_command(self):
-        """Publish the trajectory setpoint."""
+    def publish_motor_command(self, control):
+        """Publish the motor command setpoint."""
         msg = ActuatorMotors()
-        
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-        msg.timestamp_sample = int(self.get_clock().now().nanoseconds / 1000)
-        command = np.zeros(12, dtype=np.float32)
-        command[:] = 1
         
-        
-        msg.control = command
+        msg.control[0] = control[0]  # Motor 1
+        msg.control[1] = control[1]  # Motor 2
+        msg.control[2] = control[2]  # Motor 3
+        msg.control[3] = control[3]  # Motor 4
         
         self.motor_command_publisher.publish(msg)
-        self.get_logger().info(f"Publishing motor command")
+        self.get_logger().info('Publishing: "%s"' % msg)
     
     def publish_vehicle_command(self, command, **params) -> None:
         """Publish a vehicle command."""
@@ -132,43 +216,20 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         self.vehicle_command_publisher.publish(msg)
 
-    def timer_callback(self) -> None:
-        """Callback function for the timer."""
-        self.publish_offboard_control_heartbeat_signal()
-
-        if self.offboard_setpoint_counter == 10:
-            self.engage_offboard_mode()
-            #self.arm()
-
-        if self.vehicle_local_position.z > self.takeoff_height and self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            #self.publish_position_setpoint(0.0, 0.0, self.takeoff_height)
-            self.publish_motor_command()
-
-        elif self.vehicle_local_position.z <= self.takeoff_height:
-            self.land()
-            exit(0)
-
-        if self.offboard_setpoint_counter < 11:
-            self.offboard_setpoint_counter += 1
     
-    def timer_callback2(self):
+    def timer_callback(self):
         self.publish_offboard_control_heartbeat_signal()
+        
+        
+        
         if self.offboard_setpoint_counter == 10:
             self.engage_offboard_mode()
             self.arm()
         elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-            msg = ActuatorMotors()
-            msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
-            # Set all motors to 50% throttle
-            # The control group 0 is usually for direct motor control
-            # The values range from -1 to 1, where 0 is 50% throttle
-            msg.control[0] = 0.5  # Motor 1
-            msg.control[1] = 0.5  # Motor 2
-            msg.control[2] = 0.5  # Motor 3
-            msg.control[3] = 0.5  # Motor 4
-            # Add additional motors if necessary
-            self.motor_command_publisher.publish(msg)
-            self.get_logger().info('Publishing: "%s"' % msg)
+            params = self.get_parameters(
+            ['motor_speed_0', 'motor_speed_1', 'motor_speed_2', 'motor_speed_3'])
+            self.speed = np.asarray([p.value for p in params])
+            self.publish_motor_command(self.speed)
             
         if self.offboard_setpoint_counter < 11:
             self.offboard_setpoint_counter += 1
@@ -179,6 +240,7 @@ def main(args=None) -> None:
     print('Starting offboard control node...')
     rclpy.init(args=args)
     offboard_control = OffboardControl()
+    #offboard_control.setup_mpc()
     rclpy.spin(offboard_control)
     offboard_control.destroy_node()
     rclpy.shutdown()

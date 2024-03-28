@@ -29,3 +29,5 @@ RUN rosdep update
 # Source the ROS setup file
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 RUN echo "source /drone_mt_ros2/ros/install/local_setup.bash" >> ~/.bashrc
+RUN echo "export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/drone_mt_ros2/acados/lib " >> ~/.bashrc
+RUN echo "export ACADOS_SOURCE_DIR=/drone_mt_ros2/acados " >> ~/.bashrc
