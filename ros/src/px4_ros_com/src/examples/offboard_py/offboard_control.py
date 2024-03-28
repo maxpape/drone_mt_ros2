@@ -79,10 +79,38 @@ class OffboardControl(Node):
         self.Tf = 2
         self.nx = 13
         self.nu = 4
+        self.Tmax = 10
+        self.Tmin = 0
+        
+        
         self.m = 1.5
         self.g = 9.81
-        self.J = np.asarray([[0.029125, 0, 0],[0,0.029125,0],[0,0,0.055225]])
-        self.P = np.asarray([[-0.107, -0.107, 0.107, 0.107],[0.0935, -0.0935, -0.0935, 0.0935],[-0.000806428, 0.000806428, -0.000806428, 0.000806428]])
+        self.jxx = 0.029125
+        self.jyy = 0.029125
+        self.jzz = 0.055225
+        self.d_x0 = 0.107
+        self.d_x1 = 0.107 
+        self.d_x2 = 0.107 
+        self.d_x3 = 0.107 
+        self.d_y0 = 0.0935
+        self.d_y1 = 0.0935
+        self.d_y2 = 0.0935
+        self.d_y3 = 0.0935
+        self.c_tau = 0.000806428
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
         self.current_state = np.zeros(13)
         self.ocp_solver = None
         self.pos_setpoint = np.zeros(3)
@@ -106,10 +134,8 @@ class OffboardControl(Node):
         ocp.cost.cost_type = 'NONLINEAR_LS'
         ocp.cost.cost_type_e = 'NONLINEAR_LS'
         
-        Q_mat = np.zeros((9,9))
-        Q_mat[0,0] = 2
-        Q_mat[1,1] = 2
-        Q_mat[2,2] = 4
+        Q_mat = np.eye(13)
+        
         
         R_mat = np.eye(3)
 
@@ -125,18 +151,17 @@ class OffboardControl(Node):
         yref_e = np.zeros((ny_e, ))
         ocp.cost.yref_e = yref_e
         
-        aMax = self.aMax
-        vMax = self.vMax
+        Tmin = self.Tmin
+        Tmax = self.Tmax
+        
         # set constraints
-        ocp.constraints.lbu = np.array([-aMax, -aMax, -aMax])
-        ocp.constraints.ubu = np.array([+aMax, +aMax, +aMax])
+        ocp.constraints.lbu = np.array([Tmin, Tmin, Tmin, Tmin])
+        ocp.constraints.ubu = np.array([Tmax, Tmax, Tmax, Tmax])
     
-        ocp.constraints.lbx = np.array([-vMax, -vMax, -vMax, -aMax, -aMax, -aMax])
-        ocp.constraints.ubx = np.array([+vMax, +vMax, +vMax, +aMax, +aMax, +aMax])
-            
+                   
         ocp.constraints.x0 = self.current_state
-        ocp.constraints.idxbu = np.array([0, 1, 2])
-        ocp.constraints.idxbx = np.array([3, 4, 5, 6, 7, 8])    
+        ocp.constraints.idxbu = np.array([0, 1, 2, 3])
+           
         
 
     def vehicle_local_position_callback(self, vehicle_local_position):
@@ -240,7 +265,7 @@ def main(args=None) -> None:
     print('Starting offboard control node...')
     rclpy.init(args=args)
     offboard_control = OffboardControl()
-    #offboard_control.setup_mpc()
+    offboard_control.setup_mpc()
     rclpy.spin(offboard_control)
     offboard_control.destroy_node()
     rclpy.shutdown()

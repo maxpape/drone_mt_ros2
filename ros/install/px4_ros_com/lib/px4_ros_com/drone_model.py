@@ -29,13 +29,58 @@
 #
 
 from acados_template import AcadosModel
-from casadi import SX, vertcat, sum1, inv, cross 
+from casadi import SX, vertcat, horzcat, sum1, inv, cross, mtimes 
+
+def quat_rotation(quaternion, vector):
+    """
+    Rotates a 3D vector by a quaternion using CasADi SX vectors.
+
+    Parameters:
+    quaternion (ca.SX): The quaternion as an SX vector [w, x, y, z].
+    vector (ca.SX): The 3D vector to be rotated as an SX vector [x, y, z].
+
+    Returns:
+    ca.SX: The rotated 3D vector as an SX vector [x, y, z].
+    """
+    # Extract quaternion components
+    w, x, y, z = quaternion[0], quaternion[1], quaternion[2], quaternion[3]
+
+    # Quaternion to rotation matrix
+    R = SX.zeros(3, 3)
+    R[0, 0] = 1 - 2*y**2 - 2*z**2
+    R[0, 1] = 2*x*y - 2*z*w
+    R[0, 2] = 2*x*z + 2*y*w
+    R[1, 0] = 2*x*y + 2*z*w
+    R[1, 1] = 1 - 2*x**2 - 2*z**2
+    R[1, 2] = 2*y*z - 2*x*w
+    R[2, 0] = 2*x*z - 2*y*w
+    R[2, 1] = 2*y*z + 2*x*w
+    R[2, 2] = 1 - 2*x**2 - 2*y**2
+
+    # Rotate the vector
+    rotated_vector = mtimes(R, vector)
+
+    return rotated_vector
+
+
+# Function to compute the quaternion product matrix for quaternion multiplication
+def quaternion_product_matrix(quat):
+    w, x, y, z = quat[0], quat[1], quat[2], quat[3]
+    return vertcat(horzcat(w, -x, -y, -z),
+                    horzcat(x,  w, -z,  y),
+                    horzcat(y,  z,  w, -x),
+                    horzcat(z, -y,  x,  w))
 
 def export_drone_ode_model() -> AcadosModel:
 
     model_name = 'drone_ode'
 
     
+
+    
+
+
+
 
     # Define state variables
     p_WB = SX.sym('p_WB', 3)  # Position of the quadrotor (x, y, z)
@@ -47,17 +92,30 @@ def export_drone_ode_model() -> AcadosModel:
 
     # Define control inputs
     thrust = SX.sym('T', 4)  # Thrust produced by the rotors
-    
+
     # Define parameters
     m = SX.sym('m')  # Mass of the quadrotor
     g = SX.sym('g')  # Acceleration due to gravity
-    J = SX.sym('J', 3, 3)  # Inertia matrix
-    P = SX.sym('P', (3,4))
-    
-    params = vertcat(m, g, J, P)
+    jxx = SX.sym('jxx')
+    jyy = SX.sym('jyy')
+    jzz = SX.sym('jzz')
 
-    
-    
+    d_x0 = SX.sym('d_x0')
+    d_x1 = SX.sym('d_x1')
+    d_x2 = SX.sym('d_x2')
+    d_x3 = SX.sym('d_x3')
+    d_y0 = SX.sym('d_y0')
+    d_y1 = SX.sym('d_y1')
+    d_y2 = SX.sym('d_y2')
+    d_y3 = SX.sym('d_y3')
+    c_tau = SX.sym('c_tau')
+
+
+    params = vertcat(m, g, jxx, jyy, jzz, d_x0, d_x1, d_x2, d_x3, d_y0, d_y1, d_y2, d_y3, c_tau)
+
+    J = vertcat(horzcat(jxx, 0, 0), horzcat(0, jyy, 0), horzcat(0, 0, jzz))  # Inertia matrix
+    P = vertcat(horzcat(-d_x0, -d_x1, d_x2, d_x3), horzcat(d_y0, -d_y1, -d_y1, d_y3), horzcat(-c_tau, c_tau, -c_tau, c_tau))
+
     # xdot
     p_WB_dot = SX.sym('p_WB_dot', 3)        # derivative of Position of the quadrotor (x, y, z)
     q_WB_dot = SX.sym('q_WB_dot', 4)        # derivative of Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
@@ -67,12 +125,12 @@ def export_drone_ode_model() -> AcadosModel:
     xdot = vertcat(p_WB_dot, q_WB_dot, v_WB_dot, omega_B_dot)
 
 
-    # dynamics
+
     f_expl = vertcat(v_WB,
-                     q_WB *  vertcat(0, omega_B.T / 2),
-                     q_WB * vertcat(0,0,0,sum1(thrust)) / m * vertcat(q_WB[0], -q_WB[1], -q_WB[2], -q_WB[3]) + vertcat(0,0,g),
-                     inv(J) * cross((P * thrust - omega_B) , (J*omega_B) ),
-                     )
+                    0.5 * mtimes(quaternion_product_matrix(q_WB), vertcat(0, omega_B)),
+                    quat_rotation(q_WB, vertcat(0,0,sum1(thrust))) / m + vertcat(0,0,g),
+                    mtimes(inv(J) , (mtimes(P , thrust) - cross( omega_B , mtimes(J,omega_B)) )),
+                    )
     
 
     
