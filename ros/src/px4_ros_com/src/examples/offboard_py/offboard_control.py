@@ -7,7 +7,7 @@ import scipy.interpolate
 from casadi import vertcat
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus, ActuatorMotors
+from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus, ActuatorMotors, VehicleOdometry
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, FloatingPointRange
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 from drone_model import export_drone_ode_model
@@ -39,15 +39,25 @@ class OffboardControl(Node):
             VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
         self.vehicle_status_subscriber = self.create_subscription(
             VehicleStatus, '/fmu/out/vehicle_status', self.vehicle_status_callback, qos_profile)
+        self.vehicle_odometry_subscriber = self.create_subscription(
+            VehicleOdometry, '/fmu/out/vehicle_odometry', self.vehicle_odometry_callback, qos_profile)
+
+
 
         # Initialize variables
         self.offboard_setpoint_counter = 0
         self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
-       
+        self.position = np.zeros(3)
+        self.velocity = np.zeros(3)
+        self.attitude = np.asarray([1,0,0,0])
+        self.angular_velocity = np.zeros(3)
+        self.current_state = np.asarray([0,0,0,1,0,0,0,0,0,0,0,0,0])
+        self.ocp_solver = None
+        self.position_setpoint = np.zeros(3)
 
         # Create a timer to publish control commands
-        self.timer = self.create_timer(0.1, self.timer_callback)
+        self.timer = self.create_timer(0.05, self.timer_callback)
         
         
         
@@ -74,8 +84,30 @@ class OffboardControl(Node):
         )
         
         
+        # Declare a parameter with a descriptor for dynamic reconfiguration
+        position_descriptor = ParameterDescriptor(
+            type=ParameterType.PARAMETER_DOUBLE,  # Specify the type as double
+            description='Desired position',     # Description of the parameter
+            additional_constraints='Range: -50 to 50',
+            floating_point_range=[FloatingPointRange(
+                from_value=-50.0,  # Minimum value
+                to_value=50.0,     # Maximum value
+                step=0.1         # Step size (optional)
+            )]# Constraints (optional)
+        )
+        
+        self.declare_parameters(
+        namespace='',
+        parameters=[
+            ('position_x', 0.0, position_descriptor),
+            ('position_y', 0.0, position_descriptor),
+            ('position_z', 0.0, position_descriptor),
+        ]
+        )
+        
+        
         self.speed = np.zeros(4)
-        self.N_horizon = 100
+        self.N_horizon = 40
         self.Tf = 2
         self.nx = 13
         self.nu = 4
@@ -99,21 +131,22 @@ class OffboardControl(Node):
         self.c_tau = 0.000806428
         
         
+        self.parameters = np.asarray([self.m,
+                                        self.g,
+                                        self.jxx,
+                                        self.jyy,
+                                        self.jzz,
+                                        self.d_x0,
+                                        self.d_x1,
+                                        self.d_x2, 
+                                        self.d_x3, 
+                                        self.d_y0,
+                                        self.d_y1,
+                                        self.d_y2,
+                                        self.d_y3,
+                                        self.c_tau])
         
         
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        
-        self.current_state = np.zeros(13)
-        self.ocp_solver = None
-        self.pos_setpoint = np.zeros(3)
         
     def setup_mpc(self):
         ocp = AcadosOcp()
@@ -123,32 +156,45 @@ class OffboardControl(Node):
         model = export_drone_ode_model()
         ocp.model = model
 
+        
+        
         nx = model.x.size()[0]
         nu = model.u.size()[0]
         ny = nx + nu
         ny_e = nx
 
         ocp.dims.N = self.N_horizon
+        
+        ocp.parameter_values = self.parameters
     
         # set cost module
         ocp.cost.cost_type = 'NONLINEAR_LS'
         ocp.cost.cost_type_e = 'NONLINEAR_LS'
         
-        Q_mat = np.eye(13)
+        Q_mat = np.zeros((13,13))
+        Q_mat[0,0] = 3
+        Q_mat[1,1] = 3
+        Q_mat[2,2] = 3
+        R_mat = np.eye(4)
         
+        Q_mat_final = np.eye(13)
+        Q_mat_final[0:3] = 3
         
-        R_mat = np.eye(3)
 
+        
+        
         ocp.cost.W = scipy.linalg.block_diag(Q_mat, R_mat)
-        ocp.cost.W_e = Q_mat
+        ocp.cost.W_e = Q_mat_final
 
         ocp.model.cost_y_expr = vertcat(model.x, model.u)
         ocp.model.cost_y_expr_e = model.x
 
         yref = np.zeros((ny, ))
+        yref[3] = 1 
         ocp.cost.yref  = yref
 
         yref_e = np.zeros((ny_e, ))
+        yref_e[3] = 1
         ocp.cost.yref_e = yref_e
         
         Tmin = self.Tmin
@@ -161,6 +207,16 @@ class OffboardControl(Node):
                    
         ocp.constraints.x0 = self.current_state
         ocp.constraints.idxbu = np.array([0, 1, 2, 3])
+        
+        ocp.solver_options.nlp_solver_type = 'SQP_RTI'
+        
+        ocp.solver_options.qp_solver_cond_N = self.N_horizon
+
+        # set prediction horizon
+        ocp.solver_options.tf = self.Tf
+
+        solver_json = 'acados_ocp_' + model.name + '.json'
+        self.ocp_solver = AcadosOcpSolver(ocp, json_file = solver_json)
            
         
 
@@ -171,6 +227,62 @@ class OffboardControl(Node):
     def vehicle_status_callback(self, vehicle_status):
         """Callback function for vehicle_status topic subscriber."""
         self.vehicle_status = vehicle_status
+        
+    def vehicle_odometry_callback(self, vehicle_odometry):
+        """Callback function for vehicle_odometry topic subscriber."""
+        
+        self.position = self.NED_to_ENU(vehicle_odometry.position)
+        self.velocity = self.NED_to_ENU(vehicle_odometry.velocity)
+        self.attitude = self.NED_to_ENU(vehicle_odometry.q)
+        self.angular_velocity = self.NED_to_ENU(vehicle_odometry.angular_velocity)
+        
+        self.current_state[0:3] = self.position
+        self.current_state[3:7] = self.attitude
+        self.current_state[7:10] = self.velocity
+        self.current_state[10:13] = self.angular_velocity
+    
+    def NED_to_ENU(self, input_array):
+        """
+        Rotates a 3D vector or a quaternion by 180 degrees around the x-axis.
+
+        Parameters:
+        input_array (np.ndarray): The input to be rotated. Should be a NumPy array of shape (3,) for a 3D vector or (4,) for a quaternion.
+
+        Returns:
+        np.ndarray: The rotated 3D vector or quaternion.
+        """
+        if input_array.shape == (3,):
+            # Handle as a 3D vector
+            # A 180-degree rotation around the x-axis flips the signs of the y and z components
+            rotated_array = input_array * np.array([1, -1, -1])
+        elif input_array.shape == (4,):
+            # Handle as a quaternion
+            # For a 180-degree rotation around the x-axis, the quaternion is [0, 1, 0, 0]
+            # This effectively flips the signs of the y and z components of the vector part
+            rotated_array = input_array * np.array([1, -1, -1, -1])
+        else:
+            raise ValueError("Input array must be either a 3D vector or a quaternion (shape (3,) or (4,)).")
+        
+        return rotated_array
+    
+    
+    def set_mpc_target_pos(self):
+    
+            
+        yref = np.zeros((self.nx+self.nu, ))
+        yref[0:3] = self.position_setpoint
+        yref[4] = 1
+        
+        yref_e = np.zeros((self.nx, ))
+        yref_e[0:3] = self.position_setpoint
+        yref[4] = 1
+        
+        for j in range(self.N_horizon):
+            
+            self.ocp_solver.set(j, "yref", yref)
+            self.ocp_solver.set(j, "p", self.parameters)
+        self.ocp_solver.set(self.N_horizon, "yref", yref_e)
+        self.ocp_solver.set(self.N_horizon, "p", self.parameters)
 
     def arm(self):
         """Send an arm command to the vehicle."""
@@ -220,7 +332,7 @@ class OffboardControl(Node):
         msg.control[3] = control[3]  # Motor 4
         
         self.motor_command_publisher.publish(msg)
-        self.get_logger().info('Publishing: "%s"' % msg)
+        self.get_logger().info('Publishing: "%s"' % control)
     
     def publish_vehicle_command(self, command, **params) -> None:
         """Publish a vehicle command."""
@@ -252,9 +364,16 @@ class OffboardControl(Node):
             self.arm()
         elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
             params = self.get_parameters(
-            ['motor_speed_0', 'motor_speed_1', 'motor_speed_2', 'motor_speed_3'])
-            self.speed = np.asarray([p.value for p in params])
-            self.publish_motor_command(self.speed)
+            ['position_x', 'position_y', 'position_z'])
+            self.position_setpoint = np.asarray([p.value for p in params])
+            self.set_mpc_target_pos()
+            
+            U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state)
+            
+            #params = self.get_parameters(
+            #['motor_speed_0', 'motor_speed_1', 'motor_speed_2', 'motor_speed_3'])
+            #self.speed = np.asarray([p.value for p in params])
+            self.publish_motor_command(U/10)
             
         if self.offboard_setpoint_counter < 11:
             self.offboard_setpoint_counter += 1
