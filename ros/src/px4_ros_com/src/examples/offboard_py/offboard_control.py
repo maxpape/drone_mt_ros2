@@ -25,6 +25,7 @@ class OffboardControl(Node):
             history=HistoryPolicy.KEEP_LAST,
             depth=1
         )
+        
 
         # Create publishers
         self.offboard_control_mode_publisher = self.create_publisher(
@@ -106,6 +107,8 @@ class OffboardControl(Node):
         )
         
         
+        print("test")
+        
         self.speed = np.zeros(4)
         self.N_horizon = 40
         self.Tf = 2
@@ -172,14 +175,15 @@ class OffboardControl(Node):
         ocp.cost.cost_type_e = 'NONLINEAR_LS'
         
         Q_mat = np.zeros((13,13))
-        Q_mat[0,0] = 3
-        Q_mat[1,1] = 3
+        Q_mat[0,0] = 2
+        Q_mat[1,1] = 2
         Q_mat[2,2] = 3
         R_mat = np.eye(4)
         
         Q_mat_final = np.eye(13)
-        Q_mat_final[0:3] = 3
-        
+        Q_mat_final[0,0] = 2
+        Q_mat_final[1,1] = 2
+        Q_mat_final[2,2] = 3        
 
         
         
@@ -271,11 +275,11 @@ class OffboardControl(Node):
             
         yref = np.zeros((self.nx+self.nu, ))
         yref[0:3] = self.position_setpoint
-        yref[4] = 1
+        yref[3] = 1
         
         yref_e = np.zeros((self.nx, ))
         yref_e[0:3] = self.position_setpoint
-        yref[4] = 1
+        yref[3] = 1
         
         for j in range(self.N_horizon):
             
@@ -283,6 +287,22 @@ class OffboardControl(Node):
             self.ocp_solver.set(j, "p", self.parameters)
         self.ocp_solver.set(self.N_horizon, "yref", yref_e)
         self.ocp_solver.set(self.N_horizon, "p", self.parameters)
+        
+    def map_logarithmic(self, input_value):
+        # Ensure the input is within the expected range
+        if input_value < 0 or input_value > 10:
+            raise ValueError("Input value must be between 0 and 10")
+        
+        # Normalize input from 0-10 to 1-11
+        normalized_input = input_value + 1
+        
+        # Apply logarithm with base 2
+        log_output = np.log2(normalized_input)
+        
+        # Scale the output from 0 to slightly above 3 to 0-1
+        scaled_output = log_output / np.log2(11)
+        
+        return scaled_output
 
     def arm(self):
         """Send an arm command to the vehicle."""
@@ -370,10 +390,12 @@ class OffboardControl(Node):
             
             U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state)
             
+            command = np.asarray([self.map_logarithmic(u) for u in U])
+            
             #params = self.get_parameters(
             #['motor_speed_0', 'motor_speed_1', 'motor_speed_2', 'motor_speed_3'])
             #self.speed = np.asarray([p.value for p in params])
-            self.publish_motor_command(U/10)
+            self.publish_motor_command(command)
             
         if self.offboard_setpoint_counter < 11:
             self.offboard_setpoint_counter += 1

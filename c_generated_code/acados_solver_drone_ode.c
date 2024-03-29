@@ -446,8 +446,8 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
 
    double* W_0 = calloc(NY0*NY0, sizeof(double));
     // change only the non-zero elements:
-    W_0[0+(NY0) * 0] = 3;
-    W_0[1+(NY0) * 1] = 3;
+    W_0[0+(NY0) * 0] = 2;
+    W_0[1+(NY0) * 1] = 2;
     W_0[2+(NY0) * 2] = 3;
     W_0[13+(NY0) * 13] = 1;
     W_0[14+(NY0) * 14] = 1;
@@ -466,8 +466,8 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     free(yref);
     double* W = calloc(NY*NY, sizeof(double));
     // change only the non-zero elements:
-    W[0+(NY) * 0] = 3;
-    W[1+(NY) * 1] = 3;
+    W[0+(NY) * 0] = 2;
+    W[1+(NY) * 1] = 2;
     W[2+(NY) * 2] = 3;
     W[13+(NY) * 13] = 1;
     W[14+(NY) * 14] = 1;
@@ -487,45 +487,9 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
 
     double* W_e = calloc(NYN*NYN, sizeof(double));
     // change only the non-zero elements:
-    W_e[0+(NYN) * 0] = 3;
-    W_e[0+(NYN) * 1] = 3;
-    W_e[0+(NYN) * 2] = 3;
-    W_e[0+(NYN) * 3] = 3;
-    W_e[0+(NYN) * 4] = 3;
-    W_e[0+(NYN) * 5] = 3;
-    W_e[0+(NYN) * 6] = 3;
-    W_e[0+(NYN) * 7] = 3;
-    W_e[0+(NYN) * 8] = 3;
-    W_e[0+(NYN) * 9] = 3;
-    W_e[0+(NYN) * 10] = 3;
-    W_e[0+(NYN) * 11] = 3;
-    W_e[0+(NYN) * 12] = 3;
-    W_e[1+(NYN) * 0] = 3;
-    W_e[1+(NYN) * 1] = 3;
-    W_e[1+(NYN) * 2] = 3;
-    W_e[1+(NYN) * 3] = 3;
-    W_e[1+(NYN) * 4] = 3;
-    W_e[1+(NYN) * 5] = 3;
-    W_e[1+(NYN) * 6] = 3;
-    W_e[1+(NYN) * 7] = 3;
-    W_e[1+(NYN) * 8] = 3;
-    W_e[1+(NYN) * 9] = 3;
-    W_e[1+(NYN) * 10] = 3;
-    W_e[1+(NYN) * 11] = 3;
-    W_e[1+(NYN) * 12] = 3;
-    W_e[2+(NYN) * 0] = 3;
-    W_e[2+(NYN) * 1] = 3;
+    W_e[0+(NYN) * 0] = 2;
+    W_e[1+(NYN) * 1] = 2;
     W_e[2+(NYN) * 2] = 3;
-    W_e[2+(NYN) * 3] = 3;
-    W_e[2+(NYN) * 4] = 3;
-    W_e[2+(NYN) * 5] = 3;
-    W_e[2+(NYN) * 6] = 3;
-    W_e[2+(NYN) * 7] = 3;
-    W_e[2+(NYN) * 8] = 3;
-    W_e[2+(NYN) * 9] = 3;
-    W_e[2+(NYN) * 10] = 3;
-    W_e[2+(NYN) * 11] = 3;
-    W_e[2+(NYN) * 12] = 3;
     W_e[3+(NYN) * 3] = 1;
     W_e[4+(NYN) * 4] = 1;
     W_e[5+(NYN) * 5] = 1;
