@@ -9,6 +9,7 @@ sudo apt-get update -y
 sudo apt-get install -y gz-garden
 pip install --user -U empy==3.3.4 pyros-genmsg setuptools
 pip install symforce
+pip install casadi
 git clone https://github.com/PX4/PX4-Autopilot.git --recursive
 bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
 cd PX4-Autopilot/
@@ -23,6 +24,17 @@ cmake ..
 make
 sudo make install
 sudo ldconfig /usr/local/lib/
+
+
+cd /drone_mt_ros2/
+git clone https://github.com/acados/acados.git
+cd acados
+git submodule update --recursive --init
+mkdir build
+cd build
+cmake -DACADOS_WITH_QPOASES=ON ..
+make install -j4
+pip install -e /drone_mt_ros2/acados/interfaces/acados_template
 
 
 cd /drone_mt_ros2/ros

@@ -39,6 +39,7 @@
 
 // example specific
 #include "drone_ode_model/drone_ode_model.h"
+#include "drone_ode_constraints/drone_ode_constraints.h"
 #include "drone_ode_cost/drone_ode_cost.h"
 
 
@@ -323,6 +324,17 @@ void drone_ode_acados_create_3_create_and_set_functions(drone_ode_solver_capsule
         capsule->__CAPSULE_FNC__.casadi_work = & __MODEL_BASE_FNC__ ## _work; \
         external_function_param_casadi_create(&capsule->__CAPSULE_FNC__ , 14); \
     } while(false)
+    // constraints.constr_type == "BGH" and dims.nh > 0
+    capsule->nl_constr_h_fun_jac = (external_function_param_casadi *) malloc(sizeof(external_function_param_casadi)*(N-1));
+    for (int i = 0; i < N-1; i++) {
+        MAP_CASADI_FNC(nl_constr_h_fun_jac[i], drone_ode_constr_h_fun_jac_uxt_zt);
+    }
+    capsule->nl_constr_h_fun = (external_function_param_casadi *) malloc(sizeof(external_function_param_casadi)*(N-1));
+    for (int i = 0; i < N-1; i++) {
+        MAP_CASADI_FNC(nl_constr_h_fun[i], drone_ode_constr_h_fun);
+    }
+    
+
 
 
     // explicit ode
@@ -614,6 +626,30 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
 
 
 
+    // set up nonlinear constraints for stage 1 to N-1
+    double* luh = calloc(2*NH, sizeof(double));
+    double* lh = luh;
+    double* uh = luh + NH;
+
+    
+    lh[0] = -0.17453292519943295;
+    lh[1] = -0.17453292519943295;
+
+    
+    uh[0] = 0.17453292519943295;
+    uh[1] = 0.17453292519943295;
+
+    for (int i = 1; i < N; i++)
+    {
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "nl_constr_h_fun_jac",
+                                      &capsule->nl_constr_h_fun_jac[i-1]);
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "nl_constr_h_fun",
+                                      &capsule->nl_constr_h_fun[i-1]);
+        
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "lh", lh);
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "uh", uh);
+    }
+    free(luh);
 
 
 
@@ -920,6 +956,8 @@ int drone_ode_acados_update_params(drone_ode_solver_capsule* capsule, int stage,
         }
         else
         {
+            capsule->nl_constr_h_fun_jac[stage-1].set_param(capsule->nl_constr_h_fun_jac+stage-1, p);
+            capsule->nl_constr_h_fun[stage-1].set_param(capsule->nl_constr_h_fun+stage-1, p);
         }
 
         // cost
@@ -994,6 +1032,8 @@ int drone_ode_acados_update_params_sparse(drone_ode_solver_capsule * capsule, in
             capsule->cost_y_hess[stage-1].set_param_sparse(capsule->cost_y_hess+stage-1, n_update, idx, p);
 
         
+            capsule->nl_constr_h_fun_jac[stage-1].set_param_sparse(capsule->nl_constr_h_fun_jac+stage-1, n_update, idx, p);
+            capsule->nl_constr_h_fun[stage-1].set_param_sparse(capsule->nl_constr_h_fun+stage-1, n_update, idx, p);
         }
     }
 
@@ -1063,6 +1103,13 @@ int drone_ode_acados_free(drone_ode_solver_capsule* capsule)
     external_function_param_casadi_free(&capsule->cost_y_e_hess);
 
     // constraints
+    for (int i = 0; i < N-1; i++)
+    {
+        external_function_param_casadi_free(&capsule->nl_constr_h_fun_jac[i]);
+        external_function_param_casadi_free(&capsule->nl_constr_h_fun[i]);
+    }
+    free(capsule->nl_constr_h_fun_jac);
+    free(capsule->nl_constr_h_fun);
 
     return 0;
 }

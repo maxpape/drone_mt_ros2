@@ -64,7 +64,7 @@
 #define DRONE_ODE_NY     17
 #define DRONE_ODE_NYN    13
 #define DRONE_ODE_N      40
-#define DRONE_ODE_NH     0
+#define DRONE_ODE_NH     2
 #define DRONE_ODE_NHN    0
 #define DRONE_ODE_NH0    0
 #define DRONE_ODE_NPHI0  0
@@ -122,6 +122,8 @@ typedef struct drone_ode_solver_capsule
 
 
     // constraints
+    external_function_param_casadi *nl_constr_h_fun_jac;
+    external_function_param_casadi *nl_constr_h_fun;
 
 
 

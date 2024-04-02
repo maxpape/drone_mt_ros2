@@ -43,6 +43,8 @@ MODEL_OBJ := $(MODEL_SRC:.c=.o)
 
 # optimal control problem - mostly CasADi exports
 OCP_SRC=
+OCP_SRC+= drone_ode_constraints/drone_ode_constr_h_fun_jac_uxt_zt.c
+OCP_SRC+= drone_ode_constraints/drone_ode_constr_h_fun.c
 OCP_SRC+= drone_ode_cost/drone_ode_cost_y_0_fun.c
 OCP_SRC+= drone_ode_cost/drone_ode_cost_y_0_fun_jac_ut_xt.c
 OCP_SRC+= drone_ode_cost/drone_ode_cost_y_0_hess.c

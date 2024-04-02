@@ -4,13 +4,60 @@ import rclpy
 import numpy as np
 import scipy.linalg
 import scipy.interpolate
-from casadi import vertcat
+from casadi import SX, vertcat
+from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus, ActuatorMotors, VehicleOdometry
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, FloatingPointRange
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 from drone_model import export_drone_ode_model
+
+
+def quaternion_to_roll(w, x, y, z):
+        """
+        Convert a quaternion into euler angles (roll, pitch, yaw)
+        roll is rotation around x-axis, pitch is rotation around y-axis,
+        and yaw is rotation around z-axis.
+        """
+        
+        # Perform the conversion
+        t0 = +2.0 * (w * x + y * z)
+        t1 = +1.0 - 2.0 * (x**2 + y**2)
+        roll_x = np.arctan2(t0, t1)
+        
+        t2 = +2.0 * (w * y - z * x)
+        t2 = np.clip(t2, -1.0, 1.0)
+        pitch_y = np.arcsin(t2)
+        
+        t3 = +2.0 * (w * z + x * y)
+        t4 = +1.0 - 2.0 * (y**2 + z**2)
+        yaw_z = np.arctan2(t3, t4)
+        
+        return roll_x  # in radians
+def quaternion_to_pitch(w, x, y, z):
+        """
+        Convert a quaternion into euler angles (roll, pitch, yaw)
+        roll is rotation around x-axis, pitch is rotation around y-axis,
+        and yaw is rotation around z-axis.
+        """
+        
+        # Perform the conversion
+        t0 = +2.0 * (w * x + y * z)
+        t1 = +1.0 - 2.0 * (x**2 + y**2)
+        roll_x = np.arctan2(t0, t1)
+        
+        t2 = +2.0 * (w * y - z * x)
+        t2 = np.clip(t2, -1.0, 1.0)
+        pitch_y = np.arcsin(t2)
+        
+        t3 = +2.0 * (w * z + x * y)
+        t4 = +1.0 - 2.0 * (y**2 + z**2)
+        yaw_z = np.arctan2(t3, t4)
+        
+        return pitch_y  # in radians
+
+
 
 class OffboardControl(Node):
     """Node for controlling a vehicle in offboard mode."""
@@ -149,7 +196,9 @@ class OffboardControl(Node):
                                         self.d_y3,
                                         self.c_tau])
         
-        
+    
+    
+
         
     def setup_mpc(self):
         ocp = AcadosOcp()
@@ -205,12 +254,30 @@ class OffboardControl(Node):
         Tmax = self.Tmax
         
         # set constraints
+        
         ocp.constraints.lbu = np.array([Tmin, Tmin, Tmin, Tmin])
         ocp.constraints.ubu = np.array([Tmax, Tmax, Tmax, Tmax])
     
                    
         ocp.constraints.x0 = self.current_state
         ocp.constraints.idxbu = np.array([0, 1, 2, 3])
+        
+        
+        # Set the bounds for the pitch and roll angles
+        max_angle_rad = 10 * np.pi / 180  # Convert 10 degrees to radians
+        
+        ocp.dims.nh = 1
+        
+        #ocp.model.con_h_expr = vertcat(quaternion_to_euler(model.x[3], model.x[4], model.x[5], model.x[6]), quaternion_to_euler(model.x[3], model.x[4], model.x[5], model.x[6]))
+        ocp.model.con_h_expr = np.array([quaternion_to_pitch(model.x[3], model.x[4], model.x[5], model.x[6]), quaternion_to_roll(model.x[3], model.x[4], model.x[5], model.x[6])])
+        ocp.constraints.lh = np.array([-max_angle_rad, -max_angle_rad]) # Lower bounds
+        ocp.constraints.uh = np.array([max_angle_rad, max_angle_rad])  # Upper bounds
+        
+        
+        
+        
+
+        
         
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'
         
@@ -407,6 +474,7 @@ def main(args=None) -> None:
     rclpy.init(args=args)
     offboard_control = OffboardControl()
     offboard_control.setup_mpc()
+    
     rclpy.spin(offboard_control)
     offboard_control.destroy_node()
     rclpy.shutdown()

@@ -84,7 +84,10 @@
         "lbx_e": [],
         "lg": [],
         "lg_e": [],
-        "lh": [],
+        "lh": [
+            -0.17453292519943295,
+            -0.17453292519943295
+        ],
         "lh_0": [],
         "lh_e": [],
         "lphi": [],
@@ -126,7 +129,10 @@
         "ubx_e": [],
         "ug": [],
         "ug_e": [],
-        "uh": [],
+        "uh": [
+            0.17453292519943295,
+            0.17453292519943295
+        ],
         "uh_0": [],
         "uh_e": [],
         "uphi": [],
@@ -1084,7 +1090,7 @@
         "nbxe_0": 13,
         "ng": 0,
         "ng_e": 0,
-        "nh": 0,
+        "nh": 2,
         "nh_0": 0,
         "nh_e": 0,
         "np": 14,
@@ -1117,7 +1123,7 @@
     },
     "json_file": "acados_ocp_drone_ode.json",
     "model": {
-        "con_h_expr": null,
+        "con_h_expr": "jhpnnagiieahaaaadaaaaaaaaaaaaaaaaaeggaaaaaaaaaaaaaaacaaaaaaaaaaaaaaabaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabaaaaaaaaaaaaaaacaaaaaaaaaaaaaaaegbaaaaaaaaaaaaaaaegpcaaaaaaaaaaaaaagaaaaaaaahpfhfcepfadegpcaaaaaaaaaaaaaagaaaaaaaahpfhfcepfbdegbaaaaaaaaaaaaaaachbaaaaaaaaaaaaaaachcaaaaaaaaaaaaaaa",
         "con_h_expr_0": null,
         "con_h_expr_e": null,
         "con_phi_expr": null,
