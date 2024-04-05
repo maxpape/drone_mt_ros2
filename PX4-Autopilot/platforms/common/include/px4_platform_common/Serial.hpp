@@ -48,6 +48,7 @@ namespace device __EXPORT
 class Serial
 {
 public:
+	Serial();
 	Serial(const char *port, uint32_t baudrate = 57600,
 	       ByteSize bytesize = ByteSize::EightBits, Parity parity = Parity::None,
 	       StopBits stopbits = StopBits::One, FlowControl flowcontrol = FlowControl::Disabled);
@@ -63,6 +64,8 @@ public:
 	ssize_t readAtLeast(uint8_t *buffer, size_t buffer_size, size_t character_count = 1, uint32_t timeout_us = 0);
 
 	ssize_t write(const void *buffer, size_t buffer_size);
+
+	void flush();
 
 	// If port is already open then the following configuration functions
 	// will reconfigure the port. If the port is not yet open then they will
@@ -83,6 +86,17 @@ public:
 	FlowControl getFlowcontrol() const;
 	bool setFlowcontrol(FlowControl flowcontrol);
 
+	bool getSingleWireMode() const;
+	bool setSingleWireMode();
+
+	bool getSwapRxTxMode() const;
+	bool setSwapRxTxMode();
+
+	bool getInvertedMode() const;
+	bool setInvertedMode(bool enable);
+
+	static bool validatePort(const char *port);
+	bool setPort(const char *port);
 	const char *getPort() const;
 
 private:

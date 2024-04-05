@@ -10,6 +10,7 @@ sudo apt-get install -y gz-garden
 pip install --user -U empy==3.3.4 pyros-genmsg setuptools
 pip install symforce
 pip install casadi
+pip install spatial-casadi
 git clone https://github.com/PX4/PX4-Autopilot.git --recursive
 bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
 cd PX4-Autopilot/

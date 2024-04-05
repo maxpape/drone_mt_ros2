@@ -36,6 +36,10 @@
 namespace device
 {
 
+Serial::Serial() :
+	_impl(nullptr, 57600, ByteSize::EightBits, Parity::None, StopBits::One, FlowControl::Disabled) {}
+
+
 Serial::Serial(const char *port, uint32_t baudrate, ByteSize bytesize, Parity parity, StopBits stopbits,
 	       FlowControl flowcontrol) :
 	_impl(port, baudrate, bytesize, parity, stopbits, flowcontrol)
@@ -78,6 +82,11 @@ ssize_t Serial::readAtLeast(uint8_t *buffer, size_t buffer_size, size_t characte
 ssize_t Serial::write(const void *buffer, size_t buffer_size)
 {
 	return _impl.write(buffer, buffer_size);
+}
+
+void Serial::flush()
+{
+	return _impl.flush();
 }
 
 uint32_t Serial::getBaudrate() const
@@ -130,9 +139,47 @@ bool Serial::setFlowcontrol(FlowControl flowcontrol)
 	return _impl.setFlowcontrol(flowcontrol);
 }
 
+bool Serial::getSingleWireMode() const
+{
+	return _impl.getSingleWireMode();
+}
+bool Serial::setSingleWireMode()
+{
+	return _impl.setSingleWireMode();
+}
+
+bool Serial::getSwapRxTxMode() const
+{
+	return _impl.getSwapRxTxMode();
+}
+bool Serial::setSwapRxTxMode()
+{
+	return _impl.setSwapRxTxMode();
+}
+
+bool Serial::getInvertedMode() const
+{
+	return _impl.getInvertedMode();
+}
+
+bool Serial::setInvertedMode(bool enable)
+{
+	return _impl.setInvertedMode(enable);
+}
+
 const char *Serial::getPort() const
 {
 	return _impl.getPort();
+}
+
+bool Serial::validatePort(const char *port)
+{
+	return SerialImpl::validatePort(port);
+}
+
+bool Serial::setPort(const char *port)
+{
+	return _impl.setPort(port);
 }
 
 } // namespace device

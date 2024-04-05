@@ -48,9 +48,8 @@ SerialImpl::SerialImpl(const char *port, uint32_t baudrate, ByteSize bytesize, P
 	_stopbits(stopbits),
 	_flowcontrol(flowcontrol)
 {
-	if (port) {
-		strncpy(_port, port, sizeof(_port) - 1);
-		_port[sizeof(_port) - 1] = '\0';
+	if (validatePort(port)) {
+		setPort(port);
 
 	} else {
 		_port[0] = 0;
@@ -114,6 +113,11 @@ bool SerialImpl::open()
 
 	if (_flowcontrol != FlowControl::Disabled) {
 		PX4_ERR("Qurt platform only supports FlowControl::Disabled");
+		return false;
+	}
+
+	if (!validatePort(_port)) {
+		PX4_ERR("Invalid port %s", _port);
 		return false;
 	}
 
@@ -251,9 +255,35 @@ ssize_t SerialImpl::write(const void *buffer, size_t buffer_size)
 	return ret_write;
 }
 
+void SerialImpl::flush()
+{
+	// TODO: Flush not implemented yet on Qurt
+}
+
 const char *SerialImpl::getPort() const
 {
 	return _port;
+}
+
+bool SerialImpl::validatePort(const char *port)
+{
+	return (qurt_uart_get_port(port) >= 0);
+}
+
+bool SerialImpl::setPort(const char *port)
+{
+	if (_open) {
+		PX4_ERR("Cannot set port after port has already been opened");
+		return false;
+	}
+
+	if (validatePort(port)) {
+		strncpy(_port, port, sizeof(_port) - 1);
+		_port[sizeof(_port) - 1] = '\0';
+		return true;
+	}
+
+	return false;
 }
 
 uint32_t SerialImpl::getBaudrate() const
@@ -321,6 +351,38 @@ FlowControl SerialImpl::getFlowcontrol() const
 bool SerialImpl::setFlowcontrol(FlowControl flowcontrol)
 {
 	return flowcontrol == FlowControl::Disabled;
+}
+
+bool SerialImpl::getSingleWireMode() const
+{
+	return false;
+}
+
+bool SerialImpl::setSingleWireMode()
+{
+	// Qurt platform does not support single wire mode
+	return false;
+}
+
+bool SerialImpl::getSwapRxTxMode() const
+{
+	return false;
+}
+
+bool SerialImpl::setSwapRxTxMode()
+{
+	// Qurt platform does not support swap rx tx mode
+	return false;
+}
+
+bool SerialImpl::setInvertedMode(bool enable)
+{
+	// Qurt platform does not support inverted mode
+	return false == enable;
+}
+bool SerialImpl::getInvertedMode() const
+{
+	return false;
 }
 
 } // namespace device

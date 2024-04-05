@@ -77,22 +77,6 @@ def export_drone_ode_model() -> AcadosModel:
 
     
 
-    
-
-
-
-
-    # Define state variables
-    p_WB = SX.sym('p_WB', 3)  # Position of the quadrotor (x, y, z)
-    q_WB = SX.sym('q_WB', 4)  # Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
-    v_WB = SX.sym('v_WB', 3)  # Linear velocity of the quadrotor
-    omega_B = SX.sym('omega_B', 3)  # Angular velocity of the quadrotor in body frame
-
-    x = vertcat(p_WB, q_WB, v_WB, omega_B)
-
-    # Define control inputs
-    thrust = SX.sym('T', 4)  # Thrust produced by the rotors
-
     # Define parameters
     m = SX.sym('m')  # Mass of the quadrotor
     g = SX.sym('g')  # Acceleration due to gravity
@@ -109,12 +93,32 @@ def export_drone_ode_model() -> AcadosModel:
     d_y2 = SX.sym('d_y2')
     d_y3 = SX.sym('d_y3')
     c_tau = SX.sym('c_tau')
+    p_ref = SX.sym('p_ref', 3)
+    q_ref = SX.sym('q_ref', 4)
+    v_ref = SX.sym('v_ref', 3)
+    w_ref = SX.sym('w_ref', 3)
 
 
-    params = vertcat(m, g, jxx, jyy, jzz, d_x0, d_x1, d_x2, d_x3, d_y0, d_y1, d_y2, d_y3, c_tau)
+    params = vertcat(m, g, jxx, jyy, jzz, d_x0, d_x1, d_x2, d_x3, d_y0, d_y1, d_y2, d_y3, c_tau, p_ref, q_ref, v_ref, w_ref)
+
+
+
+
+    # Define state variables
+    p_WB = SX.sym('p_WB', 3)  # Position of the quadrotor (x, y, z)
+    q_WB = SX.sym('q_WB', 4)  # Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
+    v_WB = SX.sym('v_WB', 3)  # Linear velocity of the quadrotor
+    omega_B = SX.sym('omega_B', 3)  # Angular velocity of the quadrotor in body frame
+
+    x = vertcat(p_WB, q_WB, v_WB, omega_B)
+
+    # Define control inputs
+    thrust = SX.sym('T', 4)  # Thrust produced by the rotors
+
+    
 
     J = vertcat(horzcat(jxx, 0, 0), horzcat(0, jyy, 0), horzcat(0, 0, jzz))  # Inertia matrix
-    P = vertcat(horzcat(-d_x0, -d_x1, d_x2, d_x3), horzcat(d_y0, -d_y1, -d_y1, d_y3), horzcat(-c_tau, c_tau, -c_tau, c_tau))
+    P = vertcat(horzcat(-d_x0, -d_x1, d_x2, d_x3), horzcat(d_y0, -d_y1, -d_y2, d_y3), horzcat(-c_tau, c_tau, -c_tau, c_tau))
 
     # xdot
     p_WB_dot = SX.sym('p_WB_dot', 3)        # derivative of Position of the quadrotor (x, y, z)
