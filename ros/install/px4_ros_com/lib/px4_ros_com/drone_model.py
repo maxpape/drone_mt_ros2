@@ -29,7 +29,22 @@
 #
 
 from acados_template import AcadosModel
-from casadi import SX, vertcat, horzcat, sum1, inv, cross, mtimes 
+from casadi import SX, vertcat, horzcat, sum1, inv, cross, mtimes, dot
+
+
+def sx_quat_multiply(q, p):
+
+    s1 = q[0]
+    v1 = q[1:4]
+    s2 = p[0]
+    v2 = p[1:4]
+    s = s1 * s2 - dot(v1, v2)
+    v = s1 * v2 + s2 * v1 + cross(v1, v2)
+    return vertcat(s, v)
+
+def quat_derivative(q, w):
+
+    return sx_quat_multiply(q, vertcat(SX(0), w)) / 2
 
 def quat_rotation(quaternion, vector):
     """
@@ -97,9 +112,10 @@ def export_drone_ode_model() -> AcadosModel:
     q_ref = SX.sym('q_ref', 4)
     v_ref = SX.sym('v_ref', 3)
     w_ref = SX.sym('w_ref', 3)
+    T_ref = SX.sym('T_ref', 4)
 
 
-    params = vertcat(m, g, jxx, jyy, jzz, d_x0, d_x1, d_x2, d_x3, d_y0, d_y1, d_y2, d_y3, c_tau, p_ref, q_ref, v_ref, w_ref)
+    params = vertcat(m, g, jxx, jyy, jzz, d_x0, d_x1, d_x2, d_x3, d_y0, d_y1, d_y2, d_y3, c_tau, p_ref, q_ref, v_ref, w_ref, T_ref)
 
 
 
@@ -109,11 +125,12 @@ def export_drone_ode_model() -> AcadosModel:
     q_WB = SX.sym('q_WB', 4)  # Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
     v_WB = SX.sym('v_WB', 3)  # Linear velocity of the quadrotor
     omega_B = SX.sym('omega_B', 3)  # Angular velocity of the quadrotor in body frame
+    thrust = SX.sym('T', 4)
 
-    x = vertcat(p_WB, q_WB, v_WB, omega_B)
+    x = vertcat(p_WB, q_WB, v_WB, omega_B, thrust)
 
     # Define control inputs
-    thrust = SX.sym('T', 4)  # Thrust produced by the rotors
+    thrust_set = SX.sym('T_set', 4)  # Thrust produced by the rotors
 
     
 
@@ -125,15 +142,17 @@ def export_drone_ode_model() -> AcadosModel:
     q_WB_dot = SX.sym('q_WB_dot', 4)        # derivative of Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
     v_WB_dot = SX.sym('v_WB_dot', 3)        # derivative of Linear velocity of the quadrotor
     omega_B_dot = SX.sym('omega_B_dot', 3)  # derivative of Angular velocity of the quadrotor in body frame
+    thrust_dot = SX.sym('T_dot', 4)
 
-    xdot = vertcat(p_WB_dot, q_WB_dot, v_WB_dot, omega_B_dot)
+    xdot = vertcat(p_WB_dot, q_WB_dot, v_WB_dot, omega_B_dot, thrust_dot)
 
 
-
+    #quat_derivative(q_WB, omega_B),
     f_expl = vertcat(v_WB,
                     0.5 * mtimes(quaternion_product_matrix(q_WB), vertcat(0, omega_B)),
                     quat_rotation(q_WB, vertcat(0,0,sum1(thrust))) / m + vertcat(0,0,g),
                     mtimes(inv(J) , (mtimes(P , thrust) - cross( omega_B , mtimes(J,omega_B)) )),
+                    (thrust_set-thrust)
                     )
     
 
@@ -147,7 +166,7 @@ def export_drone_ode_model() -> AcadosModel:
     model.f_expl_expr = f_expl
     model.x = x
     model.xdot = xdot
-    model.u = thrust
+    model.u = thrust_set
     model.p = params
     model.name = model_name
 

@@ -46,6 +46,7 @@ def quat_derivative(q, w):
 
     return sx_quat_multiply(q, vertcat(SX(0), w)) / 2
 
+
 def quat_rotation(quaternion, vector):
     """
     Rotates a 3D vector by a quaternion using CasADi SX vectors.
@@ -147,12 +148,12 @@ def export_drone_ode_model() -> AcadosModel:
     xdot = vertcat(p_WB_dot, q_WB_dot, v_WB_dot, omega_B_dot, thrust_dot)
 
 
-    #quat_derivative(q_WB, omega_B),
+
     f_expl = vertcat(v_WB,
-                    0.5 * mtimes(quaternion_product_matrix(q_WB), vertcat(0, omega_B)),
+                    quat_derivative(q_WB, omega_B),
                     quat_rotation(q_WB, vertcat(0,0,sum1(thrust))) / m + vertcat(0,0,g),
                     mtimes(inv(J) , (mtimes(P , thrust) - cross( omega_B , mtimes(J,omega_B)) )),
-                    (thrust_set-thrust)
+                    (thrust_set-thrust)/0.5
                     )
     
 
