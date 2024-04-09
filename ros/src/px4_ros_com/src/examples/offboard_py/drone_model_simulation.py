@@ -29,8 +29,12 @@
 #
 
 from acados_template import AcadosModel
-from casadi import SX, vertcat, horzcat, sum1, inv, cross, mtimes, dot
+from casadi import SX, vertcat, horzcat, sum1, inv, cross, mtimes, dot, norm_2
+import spatial_casadi as sc
 
+def sx_quat_inverse(q):
+
+    return SX([1, -1, -1, -1]) * q / (norm_2(q)**2)
 
 def sx_quat_multiply(q, p):
 
@@ -46,37 +50,31 @@ def quat_derivative(q, w):
 
     return sx_quat_multiply(q, vertcat(SX(0), w)) / 2
 
+def quat_rotation(v, q):
 
-def quat_rotation(quaternion, vector):
-    """
-    Rotates a 3D vector by a quaternion using CasADi SX vectors.
+    p = vertcat(SX(0), v)
+    p_rotated = sx_quat_multiply(sx_quat_multiply(q, p), sx_quat_inverse(q))
+    return p_rotated[1:4]
 
-    Parameters:
-    quaternion (ca.SX): The quaternion as an SX vector [w, x, y, z].
-    vector (ca.SX): The 3D vector to be rotated as an SX vector [x, y, z].
 
-    Returns:
-    ca.SX: The rotated 3D vector as an SX vector [x, y, z].
-    """
-    # Extract quaternion components
-    w, x, y, z = quaternion[0], quaternion[1], quaternion[2], quaternion[3]
+def quat_rotation_old(q, v):
+    rot_mat = sc.Rotation.from_quat(q).as_matrix()
+    
+    rotated_vec = mtimes(rot_mat, v)
+    
+    return rotated_vec
 
-    # Quaternion to rotation matrix
-    R = SX.zeros(3, 3)
-    R[0, 0] = 1 - 2*y**2 - 2*z**2
-    R[0, 1] = 2*x*y - 2*z*w
-    R[0, 2] = 2*x*z + 2*y*w
-    R[1, 0] = 2*x*y + 2*z*w
-    R[1, 1] = 1 - 2*x**2 - 2*z**2
-    R[1, 2] = 2*y*z - 2*x*w
-    R[2, 0] = 2*x*z - 2*y*w
-    R[2, 1] = 2*y*z + 2*x*w
-    R[2, 2] = 1 - 2*x**2 - 2*y**2
-
-    # Rotate the vector
-    rotated_vector = mtimes(R, vector)
-
-    return rotated_vector
+def omega_mat(w):
+    
+    w_x = w[0]
+    w_y = w[1]
+    w_z = w[2]
+    
+    omega_w = vertcat(horzcat(0, -w_x, -w_y, -w_z),
+                    horzcat(w_x,  0, w_z,  -w_y),
+                    horzcat(w_y,  -w_z,  0, w_x),
+                    horzcat(w_z, w_y,  -w_x,  0))
+    return omega_w
 
 
 # Function to compute the quaternion product matrix for quaternion multiplication
@@ -148,12 +146,12 @@ def export_drone_ode_model() -> AcadosModel:
     xdot = vertcat(p_WB_dot, q_WB_dot, v_WB_dot, omega_B_dot, thrust_dot)
 
 
-
+    #quat_derivative(q_WB, omega_B),
     f_expl = vertcat(v_WB,
                     quat_derivative(q_WB, omega_B),
-                    quat_rotation(q_WB, vertcat(0,0,sum1(thrust))) / m + vertcat(0,0,g),
-                    mtimes(inv(J) , (mtimes(P , thrust) - cross( omega_B , mtimes(J,omega_B)) )),
-                    (thrust_set-thrust)/0.5
+                    quat_rotation(vertcat(0,0,sum1(thrust)), q_WB) / m + vertcat(0,0,g),
+                    inv(J) @ ((P @ thrust - cross( omega_B , J @ omega_B)) ),
+                    (thrust_set*0.1-thrust)*3
                     )
     
 

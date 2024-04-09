@@ -11,7 +11,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleCommand, VehicleLocalPosition, VehicleStatus, ActuatorMotors, VehicleOdometry
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, FloatingPointRange
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
-from drone_model import export_drone_ode_model
+from drone_model_simulation import export_drone_ode_model
 
 speed = np.zeros(4)
 N_horizon = 100
@@ -46,6 +46,7 @@ c_tau = 0.000806428
 
 
 yref = np.zeros((nx, ))
+yref[2] = 5
 yref[0:3] = setpoint[0:3]
 yref[3] = np.sqrt(2)/2
 yref[6] = -np.sqrt(2)/2
@@ -107,7 +108,7 @@ def plot_drone(N, Tf, simX, U):
 
 def euler_to_quaternion(rpy):
     """
-    Convert Euler angles to quaternion.
+    Convert Euler angles to quaternion.ones
 
     Parameters:
     rpy : np.ndarray roll, pitch, yaw
@@ -377,7 +378,7 @@ def main(use_RTI=False):
         # solve ocp and get next control input
         #ocp_solver.set(0, "lbx", simX[i, :])
         #ocp_solver.set(0, "ubx", simX[i, :]) 
-        status = ocp_solver.solve()
+        #status = ocp_solver.solve()
         simU[i,:] = ocp_solver.solve_for_x0(x0_bar = simX[i, :])
         #simU[i,:] = ocp_solver.get(0, "u")
         #simU[i,:] = np.ones(4)*8
@@ -385,8 +386,9 @@ def main(use_RTI=False):
 
         # simulate system
         
+        #
         simX[i+1, :] = integrator.simulate(x=simX[i, :], u=simU[i,:])
-        #simX[i+1, :] = integrator.simulate(x=simX[i, :], u=np.ones(4)*8)
+        #simX[i+1, :] = integrator.simulate(x=simX[i, :], u=np.zeros(4)*8)
     
 
     # plot results

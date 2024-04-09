@@ -64,7 +64,7 @@ static const casadi_int casadi_s5[25] = {21, 1, 0, 21, 0, 1, 2, 3, 4, 5, 6, 7, 8
 
 /* drone_ode_cost_ext_cost_fun_jac:(i0[17],i1[4],i2[],i3[31])->(o0,o1[21]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
-  casadi_real a0, a1, a2, a3, a4;
+  casadi_real a0, a1, a2, a3, a4, a5, a6, a7, a8, a9;
   a0=arg[0]? arg[0][0] : 0;
   a1=arg[3]? arg[3][14] : 0;
   a0=(a0-a1);
@@ -79,32 +79,48 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   a3=(a3-a4);
   a4=casadi_sq(a3);
   a1=(a1+a4);
+  a4=arg[1]? arg[1][0] : 0;
+  a5=casadi_sq(a4);
+  a6=arg[1]? arg[1][1] : 0;
+  a7=casadi_sq(a6);
+  a5=(a5+a7);
+  a7=arg[1]? arg[1][2] : 0;
+  a8=casadi_sq(a7);
+  a5=(a5+a8);
+  a8=arg[1]? arg[1][3] : 0;
+  a9=casadi_sq(a8);
+  a5=(a5+a9);
+  a1=(a1+a5);
   if (res[0]!=0) res[0][0]=a1;
-  a1=0.;
-  if (res[1]!=0) res[1][0]=a1;
-  if (res[1]!=0) res[1][1]=a1;
-  if (res[1]!=0) res[1][2]=a1;
-  if (res[1]!=0) res[1][3]=a1;
+  a4=(a4+a4);
+  if (res[1]!=0) res[1][0]=a4;
+  a6=(a6+a6);
+  if (res[1]!=0) res[1][1]=a6;
+  a7=(a7+a7);
+  if (res[1]!=0) res[1][2]=a7;
+  a8=(a8+a8);
+  if (res[1]!=0) res[1][3]=a8;
   a0=(a0+a0);
   if (res[1]!=0) res[1][4]=a0;
   a2=(a2+a2);
   if (res[1]!=0) res[1][5]=a2;
   a3=(a3+a3);
   if (res[1]!=0) res[1][6]=a3;
-  if (res[1]!=0) res[1][7]=a1;
-  if (res[1]!=0) res[1][8]=a1;
-  if (res[1]!=0) res[1][9]=a1;
-  if (res[1]!=0) res[1][10]=a1;
-  if (res[1]!=0) res[1][11]=a1;
-  if (res[1]!=0) res[1][12]=a1;
-  if (res[1]!=0) res[1][13]=a1;
-  if (res[1]!=0) res[1][14]=a1;
-  if (res[1]!=0) res[1][15]=a1;
-  if (res[1]!=0) res[1][16]=a1;
-  if (res[1]!=0) res[1][17]=a1;
-  if (res[1]!=0) res[1][18]=a1;
-  if (res[1]!=0) res[1][19]=a1;
-  if (res[1]!=0) res[1][20]=a1;
+  a3=0.;
+  if (res[1]!=0) res[1][7]=a3;
+  if (res[1]!=0) res[1][8]=a3;
+  if (res[1]!=0) res[1][9]=a3;
+  if (res[1]!=0) res[1][10]=a3;
+  if (res[1]!=0) res[1][11]=a3;
+  if (res[1]!=0) res[1][12]=a3;
+  if (res[1]!=0) res[1][13]=a3;
+  if (res[1]!=0) res[1][14]=a3;
+  if (res[1]!=0) res[1][15]=a3;
+  if (res[1]!=0) res[1][16]=a3;
+  if (res[1]!=0) res[1][17]=a3;
+  if (res[1]!=0) res[1][18]=a3;
+  if (res[1]!=0) res[1][19]=a3;
+  if (res[1]!=0) res[1][20]=a3;
   return 0;
 }
 

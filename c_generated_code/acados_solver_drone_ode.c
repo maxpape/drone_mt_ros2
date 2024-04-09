@@ -578,10 +578,10 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* uh = luh + NH;
 
     
-    lh[0] = 0.9;
+    lh[0] = 0.99;
 
     
-    uh[0] = 1.1;
+    uh[0] = 1.01;
 
     for (int i = 1; i < N; i++)
     {
@@ -616,10 +616,10 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lh_e = luh_e;
     double* uh_e = luh_e + NHN;
     
-    lh_e[0] = 0.9;
+    lh_e[0] = 0.99;
 
     
-    uh_e[0] = 1.1;
+    uh_e[0] = 1.01;
 
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, N, "nl_constr_h_fun_jac", &capsule->nl_constr_h_e_fun_jac);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, N, "nl_constr_h_fun", &capsule->nl_constr_h_e_fun);
@@ -681,7 +681,7 @@ int fixed_hess = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 60;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 40;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 

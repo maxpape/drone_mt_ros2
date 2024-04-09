@@ -98,17 +98,17 @@ def error_funciton(x, y_ref):
     q_ref = y_ref[3:7]
     v_ref = y_ref[7:10]
     omega_ref = y_ref[10:13]
-    T_ref = y_ref[13:]
+    
 
     p_err = x[0:3] - p_ref
     q_err = quaternion_error(x[3:7], q_ref)
     v_err = x[7:10] - v_ref
     omega_err = x[10:13] - omega_ref
-    T_err = x[13:] - T_ref
+    
     
     
 
-    return vertcat(p_err, q_err, v_err, omega_err, T_err)
+    return vertcat(p_err, q_err, v_err, omega_err)
 
 class OffboardControl(Node):
     """Node for controlling a vehicle in offboard mode."""
@@ -140,8 +140,8 @@ class OffboardControl(Node):
             VehicleStatus, '/fmu/out/vehicle_status', self.vehicle_status_callback, qos_profile)
         self.vehicle_odometry_subscriber = self.create_subscription(
             VehicleOdometry, '/fmu/out/vehicle_odometry', self.vehicle_odometry_callback, qos_profile)
-        self.vehicle_motor_subscriber = self.create_subscription(
-            ActuatorOutputs, '/fmu/out/actuator_outputs', self.vehicle_motor_callback, qos_profile)
+        #self.vehicle_motor_subscriber = self.create_subscription(
+        #    ActuatorOutputs, '/fmu/out/actuator_outputs', self.vehicle_motor_callback, qos_profile)
 
 
 
@@ -155,8 +155,8 @@ class OffboardControl(Node):
         self.velocity = np.zeros(3)
         self.attitude = np.asarray([np.sqrt(2)/2,0,0,-np.sqrt(2)/2])
         self.angular_velocity = np.zeros(3)
-        self.thrust = np.zeros(4)
-        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
+        #self.thrust = np.zeros(4)
+        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity), axis=None)
         
         #setpoint variables
         self.ocp_solver = None
@@ -164,8 +164,8 @@ class OffboardControl(Node):
         self.velocity_setpoint = np.zeros(3)
         self.attitude_setpoint = np.asarray([np.sqrt(2)/2,0,0,-np.sqrt(2)/2])
         self.angular_velocity_setpoint = np.zeros(3)
-        self.thrust_setpoint = np.zeros(4)
-        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint, self.thrust_setpoint), axis=None)
+        #self.thrust_setpoint = np.zeros(4)
+        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
         
 
         # Create a timer to publish control commands
@@ -235,7 +235,7 @@ class OffboardControl(Node):
         parameters=[
             ('roll', 0.0, angle_descriptor),
             ('pitch', 0.0, angle_descriptor),
-            ('yaw', 90.0, angle_descriptor),
+            ('yaw', -90.0, angle_descriptor),
         ]
         )
         
@@ -245,11 +245,11 @@ class OffboardControl(Node):
         
         self.N_horizon = 40
         self.Tf = 2
-        self.nx = 17
+        self.nx = 13
         self.nu = 4
         self.Tmax = 10
         self.Tmin = 0
-        self.max_motor_rpm = 1100
+        #self.max_motor_rpm = 1100
         
         # parameters for ACAODS MPC
         self.m = 1.5
@@ -307,22 +307,22 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_mat = np.zeros((17,17))
-        Q_mat[0,0] = 1
-        Q_mat[1,1] = 1
-        Q_mat[2,2] = 1
+        Q_mat = np.zeros((13,13))
+        Q_mat[0,0] = 2
+        Q_mat[1,1] = 2
+        Q_mat[2,2] = 2
         
-        R_mat = np.zeros((4,4))
+        R_mat = np.ones((4,4))
         
-        Q_mat_final = np.eye(17)
+        Q_mat_final = np.eye(13)
         Q_mat_final[0,0] = 2
         Q_mat_final[1,1] = 2
         Q_mat_final[2,2] = 2        
 
-        Q_mat_final[13,13] = 0
-        Q_mat_final[14,14] = 0
-        Q_mat_final[15,15] = 0
-        Q_mat_final[16,16] = 0
+        #Q_mat_final[13,13] = 0
+        #Q_mat_final[14,14] = 0
+        #Q_mat_final[15,15] = 0
+        #Q_mat_final[16,16] = 0
         
 
         
@@ -356,29 +356,29 @@ class OffboardControl(Node):
         
         
         # set initial state
-        current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
+        current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity), axis=None)
         ocp.constraints.x0 = current_state
                 
         
-        ## constrain q to have norm = 1
-        #q = SX.sym('q', 4)
-        ##
-        #f_norm = Function('f_norm', [q], [sqrt(q[0]**2 + q[1]**2 + q[2]**2 + q[3]**2)])
-        #f_roll = Function('f_roll', [q], [quaternion_to_euler(q)[0]])
-        #f_pitch = Function('f_pitch', [q], [quaternion_to_euler(q)[1]])
-        ##
-        ##
-        ### constrain maximum angle of quadrotor
-        #max_angle = 30 * np.pi / 180
-        ##
-        #ocp.model.con_h_expr = f_norm(model.x[3:7])
-        #ocp.constraints.lh = np.array([0.9]) # Lower bounds
-        #ocp.constraints.uh = np.array([1.1])  # Upper bounds
+        # constrain q to have norm = 1
+        q = SX.sym('q', 4)
         #
-        ### copy for terminal shooting node
-        #ocp.constraints.uh_e = ocp.constraints.uh
-        #ocp.constraints.lh_e = ocp.constraints.lh
-        #ocp.model.con_h_expr_e = ocp.model.con_h_expr
+        f_norm = Function('f_norm', [q], [sqrt(q[0]**2 + q[1]**2 + q[2]**2 + q[3]**2)])
+        f_roll = Function('f_roll', [q], [quaternion_to_euler(q)[0]])
+        f_pitch = Function('f_pitch', [q], [quaternion_to_euler(q)[1]])
+        #
+        #
+        ## constrain maximum angle of quadrotor
+        max_angle = 30 * np.pi / 180
+        #
+        ocp.model.con_h_expr = f_norm(model.x[3:7])
+        ocp.constraints.lh = np.array([0.99]) # Lower bounds
+        ocp.constraints.uh = np.array([1.01])  # Upper bounds
+        
+        ## copy for terminal shooting node
+        ocp.constraints.uh_e = ocp.constraints.uh
+        ocp.constraints.lh_e = ocp.constraints.lh
+        ocp.model.con_h_expr_e = ocp.model.con_h_expr
         
         
         
@@ -419,23 +419,23 @@ class OffboardControl(Node):
               
     
     
-    def vehicle_motor_callback(self, motor_output):
-        
-        
-        m0 = motor_output.output[0]
-        m1 = motor_output.output[1]
-        m2 = motor_output.output[2]
-        m3 = motor_output.output[3]
-        
-        thrust = np.zeros(4)
-        
-        thrust[0] = m0 / self.max_motor_rpm
-        thrust[1] = m1 / self.max_motor_rpm
-        thrust[2] = m2 / self.max_motor_rpm
-        thrust[3] = m3 / self.max_motor_rpm
-        
-        
-        self.thrust = thrust
+    #def vehicle_motor_callback(self, motor_output):
+    #    
+    #    
+    #    m0 = motor_output.output[0]
+    #    m1 = motor_output.output[1]
+    #    m2 = motor_output.output[2]
+    #    m3 = motor_output.output[3]
+    #    
+    #    thrust = np.zeros(4)
+    #    
+    #    thrust[0] = m0 / self.max_motor_rpm
+    #    thrust[1] = m1 / self.max_motor_rpm
+    #    thrust[2] = m2 / self.max_motor_rpm
+    #    thrust[3] = m3 / self.max_motor_rpm
+    #    
+    #    
+    #    self.thrust = thrust*10
         
         
     
@@ -576,27 +576,28 @@ class OffboardControl(Node):
             # if in offboard mode: get setpoint from parameters, get optimal U, publish motor command
             params = self.get_parameters(
             ['position_x', 'position_y', 'position_z'])
-            self.position_setpoint = np.asarray([p.value for p in params])
+            position_setpoint = np.asarray([p.value for p in params])
             
             params = self.get_parameters(
             ['roll', 'pitch', 'yaw'])
             rpy = np.asarray([p.value for p in params])
-            self.attitude_setpoint = euler_to_quaternion(rpy)
+            attitude_setpoint = euler_to_quaternion(rpy)
             self.set_mpc_target_pos()
             
             
-            current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
+            self.setpoint = np.concatenate((position_setpoint, attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
+            current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity), axis=None)
             
-            
-            self.ocp_solver.set(0, "lbx", current_state)
-            self.ocp_solver.set(0, "ubx", current_state) 
+           
+            #self.ocp_solver.set(0, "lbx", current_state)
+            #self.ocp_solver.set(0, "ubx", current_state) 
             
             #print("current state: %f", self.current_state)
             #print("current setpoint: %f", self.setpoint)
-            status = self.ocp_solver.solve()
-            U = self.ocp_solver.get(0, 'u')
+            #status = self.ocp_solver.solve()
+            #U = self.ocp_solver.get(0, 'u')
             
-            #U = self.ocp_solver.solve_for_x0(x0_bar = current_state, fail_on_nonzero_status=False)
+            U = self.ocp_solver.solve_for_x0(x0_bar = current_state, fail_on_nonzero_status=False)
             
             #self.current_state[13:] = U
             
@@ -606,16 +607,16 @@ class OffboardControl(Node):
             command = np.asarray([self.map_logarithmic(u) for u in U])
             #print(self.parameters[14:])
             #print(self.ocp_solver.get_cost())
-            
+            #print(U)
             #print(quaternion_error(self.attitude_setpoint, self.attitude))
             #print(rpy)
             
-            print(self.setpoint)
-            print(current_state)
+            #print(self.setpoint)
+            #print(current_state)
             #print(U)
             #print(q_to_eu(self.current_state[3:7]))
-            #print(command)
-            self.publish_motor_command(np.ones(4)*0.1)
+            print(command)
+            self.publish_motor_command(command)
             
         if self.offboard_setpoint_counter < 11:
             self.offboard_setpoint_counter += 1

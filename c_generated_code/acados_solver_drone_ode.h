@@ -63,7 +63,7 @@
 #define DRONE_ODE_NY0    0
 #define DRONE_ODE_NY     0
 #define DRONE_ODE_NYN    0
-#define DRONE_ODE_N      60
+#define DRONE_ODE_N      40
 #define DRONE_ODE_NH     1
 #define DRONE_ODE_NHN    1
 #define DRONE_ODE_NH0    0
