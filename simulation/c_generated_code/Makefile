@@ -36,17 +36,13 @@
 
 # model
 MODEL_SRC=
-MODEL_SRC+= drone_ode_model/drone_ode_impl_dae_fun.c
-MODEL_SRC+= drone_ode_model/drone_ode_impl_dae_fun_jac_x_xdot_z.c
-MODEL_SRC+= drone_ode_model/drone_ode_impl_dae_jac_x_xdot_u_z.c
+MODEL_SRC+= drone_ode_model/drone_ode_expl_ode_fun.c
+MODEL_SRC+= drone_ode_model/drone_ode_expl_vde_forw.c
+MODEL_SRC+= drone_ode_model/drone_ode_expl_vde_adj.c
 MODEL_OBJ := $(MODEL_SRC:.c=.o)
 
 # optimal control problem - mostly CasADi exports
 OCP_SRC=
-OCP_SRC+= drone_ode_constraints/drone_ode_constr_h_fun_jac_uxt_zt.c
-OCP_SRC+= drone_ode_constraints/drone_ode_constr_h_fun.c
-OCP_SRC+= drone_ode_constraints/drone_ode_constr_h_e_fun_jac_uxt_zt.c
-OCP_SRC+= drone_ode_constraints/drone_ode_constr_h_e_fun.c
 OCP_SRC+= drone_ode_cost/drone_ode_cost_ext_cost_0_fun.c
 OCP_SRC+= drone_ode_cost/drone_ode_cost_ext_cost_0_fun_jac.c
 OCP_SRC+= drone_ode_cost/drone_ode_cost_ext_cost_0_fun_jac_hess.c

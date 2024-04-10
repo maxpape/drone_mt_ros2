@@ -53,15 +53,15 @@ extern "C" {
 
 casadi_real casadi_sq(casadi_real x) { return x*x;}
 
-static const casadi_int casadi_s0[11] = {7, 1, 0, 7, 0, 1, 2, 3, 4, 5, 6};
+static const casadi_int casadi_s0[15] = {11, 1, 0, 11, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10};
 static const casadi_int casadi_s1[3] = {0, 0, 0};
 static const casadi_int casadi_s2[25] = {21, 1, 0, 21, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20};
 static const casadi_int casadi_s3[5] = {1, 1, 0, 1, 0};
 
-/* drone_ode_cost_ext_cost_e_fun:(i0[7],i1[],i2[],i3[21])->(o0) */
+/* drone_ode_cost_ext_cost_e_fun:(i0[11],i1[],i2[],i3[21])->(o0) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_real a0, a1, a10, a11, a12, a13, a14, a15, a16, a17, a2, a3, a4, a5, a6, a7, a8, a9;
-  a0=2.;
+  a0=4.;
   a1=arg[3]? arg[3][14] : 0;
   a2=arg[0]? arg[0][0] : 0;
   a3=casadi_sq(a2);
@@ -149,7 +149,7 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   a13=(a9*a13);
   a10=(a10-a13);
   a7=(a7+a10);
-  a7=(a0*a7);
+  a0=(a0*a7);
   a2=(a2*a14);
   a1=(a1*a6);
   a2=(a2-a1);
@@ -157,28 +157,22 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   a9=(a9*a5);
   a12=(a12-a9);
   a2=(a2+a12);
-  a7=(a7*a2);
-  a8=(a8+a7);
-  a7=arg[0]? arg[0][4] : 0;
-  a2=arg[3]? arg[3][18] : 0;
-  a12=(a7-a2);
-  a12=(a0*a12);
-  a7=(a7-a2);
-  a12=(a12*a7);
-  a8=(a8+a12);
-  a12=arg[0]? arg[0][5] : 0;
-  a7=arg[3]? arg[3][19] : 0;
-  a2=(a12-a7);
-  a2=(a0*a2);
-  a12=(a12-a7);
-  a2=(a2*a12);
-  a8=(a8+a2);
-  a2=arg[0]? arg[0][6] : 0;
-  a12=arg[3]? arg[3][20] : 0;
-  a7=(a2-a12);
-  a0=(a0*a7);
-  a2=(a2-a12);
   a0=(a0*a2);
+  a8=(a8+a0);
+  a0=arg[3]? arg[3][18] : 0;
+  a2=arg[0]? arg[0][4] : 0;
+  a0=(a0-a2);
+  a0=casadi_sq(a0);
+  a8=(a8+a0);
+  a0=arg[3]? arg[3][19] : 0;
+  a2=arg[0]? arg[0][5] : 0;
+  a0=(a0-a2);
+  a0=casadi_sq(a0);
+  a8=(a8+a0);
+  a0=arg[3]? arg[3][20] : 0;
+  a2=arg[0]? arg[0][6] : 0;
+  a0=(a0-a2);
+  a0=casadi_sq(a0);
   a8=(a8+a0);
   if (res[0]!=0) res[0][0]=a8;
   return 0;

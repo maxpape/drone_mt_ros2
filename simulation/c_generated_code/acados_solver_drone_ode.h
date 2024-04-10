@@ -36,12 +36,12 @@
 #include "acados_c/ocp_nlp_interface.h"
 #include "acados_c/external_function_interface.h"
 
-#define DRONE_ODE_NX     7
+#define DRONE_ODE_NX     11
 #define DRONE_ODE_NZ     0
 #define DRONE_ODE_NU     4
 #define DRONE_ODE_NP     21
 #define DRONE_ODE_NBX    0
-#define DRONE_ODE_NBX0   7
+#define DRONE_ODE_NBX0   11
 #define DRONE_ODE_NBU    4
 #define DRONE_ODE_NSBX   0
 #define DRONE_ODE_NSBU   0
@@ -64,8 +64,8 @@
 #define DRONE_ODE_NY     0
 #define DRONE_ODE_NYN    0
 #define DRONE_ODE_N      40
-#define DRONE_ODE_NH     2
-#define DRONE_ODE_NHN    2
+#define DRONE_ODE_NH     0
+#define DRONE_ODE_NHN    0
 #define DRONE_ODE_NH0    0
 #define DRONE_ODE_NPHI0  0
 #define DRONE_ODE_NPHI   0
@@ -96,9 +96,8 @@ typedef struct drone_ode_solver_capsule
     /* external functions */
     // dynamics
 
-    external_function_param_casadi *impl_dae_fun;
-    external_function_param_casadi *impl_dae_fun_jac_x_xdot_z;
-    external_function_param_casadi *impl_dae_jac_x_xdot_u_z;
+    external_function_param_casadi *forw_vde_casadi;
+    external_function_param_casadi *expl_ode_fun;
 
 
 
@@ -121,16 +120,12 @@ typedef struct drone_ode_solver_capsule
     external_function_param_casadi ext_cost_e_fun_jac_hess;
 
     // constraints
-    external_function_param_casadi *nl_constr_h_fun_jac;
-    external_function_param_casadi *nl_constr_h_fun;
 
 
 
 
 
 
-    external_function_param_casadi nl_constr_h_e_fun_jac;
-    external_function_param_casadi nl_constr_h_e_fun;
 
 } drone_ode_solver_capsule;
 

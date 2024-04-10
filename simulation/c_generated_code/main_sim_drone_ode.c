@@ -70,15 +70,23 @@ int main()
     x_current[4] = 0.0;
     x_current[5] = 0.0;
     x_current[6] = 0.0;
+    x_current[7] = 0.0;
+    x_current[8] = 0.0;
+    x_current[9] = 0.0;
+    x_current[10] = 0.0;
 
   
-    x_current[0] = 0.7071067811865476;
+    x_current[0] = 1;
     x_current[1] = 0;
     x_current[2] = 0;
-    x_current[3] = -0.7071067811865476;
+    x_current[3] = 0;
     x_current[4] = 0;
     x_current[5] = 0;
     x_current[6] = 0;
+    x_current[7] = 0;
+    x_current[8] = 0;
+    x_current[9] = 0;
+    x_current[10] = 0;
     
   
 
@@ -92,7 +100,7 @@ int main()
     // set parameters
     double p[NP];
     p[0] = 1.5;
-    p[1] = -9.81;
+    p[1] = 9.81;
     p[2] = 0.029125;
     p[3] = 0.029125;
     p[4] = 0.055225;
@@ -105,10 +113,10 @@ int main()
     p[11] = 0.0935;
     p[12] = 0.0935;
     p[13] = 0.000806428;
-    p[14] = 0.7071067811865476;
+    p[14] = 1;
     p[15] = 0;
     p[16] = 0;
-    p[17] = 0.7071067811865476;
+    p[17] = 0;
     p[18] = 0;
     p[19] = 0;
     p[20] = 0;

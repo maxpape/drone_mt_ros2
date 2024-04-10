@@ -15,7 +15,7 @@ extern "C" {
   #define _CASADI_NAMESPACE_CONCAT(NS, ID) NS ## ID
   #define CASADI_PREFIX(ID) CASADI_NAMESPACE_CONCAT(CODEGEN_PREFIX, ID)
 #else
-  #define CASADI_PREFIX(ID) drone_ode_constr_h_fun_jac_uxt_zt_ ## ID
+  #define CASADI_PREFIX(ID) drone_ode_constr_h_0_fun_jac_uxt_zt_ ## ID
 #endif
 
 #include <math.h>
@@ -64,7 +64,7 @@ static const casadi_int casadi_s4[5] = {1, 1, 0, 1, 0};
 static const casadi_int casadi_s5[8] = {15, 1, 0, 4, 4, 5, 6, 7};
 static const casadi_int casadi_s6[3] = {1, 0, 0};
 
-/* drone_ode_constr_h_fun_jac_uxt_zt:(i0[11],i1[4],i2[],i3[21])->(o0,o1[15x1,4nz],o2[1x0]) */
+/* drone_ode_constr_h_0_fun_jac_uxt_zt:(i0[11],i1[4],i2[],i3[21])->(o0,o1[15x1,4nz],o2[1x0]) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_real a0, a1, a2, a3, a4, a5;
   a0=arg[0]? arg[0][0] : 0;
@@ -91,45 +91,45 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   return 0;
 }
 
-CASADI_SYMBOL_EXPORT int drone_ode_constr_h_fun_jac_uxt_zt(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem){
+CASADI_SYMBOL_EXPORT int drone_ode_constr_h_0_fun_jac_uxt_zt(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem){
   return casadi_f0(arg, res, iw, w, mem);
 }
 
-CASADI_SYMBOL_EXPORT int drone_ode_constr_h_fun_jac_uxt_zt_alloc_mem(void) {
+CASADI_SYMBOL_EXPORT int drone_ode_constr_h_0_fun_jac_uxt_zt_alloc_mem(void) {
   return 0;
 }
 
-CASADI_SYMBOL_EXPORT int drone_ode_constr_h_fun_jac_uxt_zt_init_mem(int mem) {
+CASADI_SYMBOL_EXPORT int drone_ode_constr_h_0_fun_jac_uxt_zt_init_mem(int mem) {
   return 0;
 }
 
-CASADI_SYMBOL_EXPORT void drone_ode_constr_h_fun_jac_uxt_zt_free_mem(int mem) {
+CASADI_SYMBOL_EXPORT void drone_ode_constr_h_0_fun_jac_uxt_zt_free_mem(int mem) {
 }
 
-CASADI_SYMBOL_EXPORT int drone_ode_constr_h_fun_jac_uxt_zt_checkout(void) {
+CASADI_SYMBOL_EXPORT int drone_ode_constr_h_0_fun_jac_uxt_zt_checkout(void) {
   return 0;
 }
 
-CASADI_SYMBOL_EXPORT void drone_ode_constr_h_fun_jac_uxt_zt_release(int mem) {
+CASADI_SYMBOL_EXPORT void drone_ode_constr_h_0_fun_jac_uxt_zt_release(int mem) {
 }
 
-CASADI_SYMBOL_EXPORT void drone_ode_constr_h_fun_jac_uxt_zt_incref(void) {
+CASADI_SYMBOL_EXPORT void drone_ode_constr_h_0_fun_jac_uxt_zt_incref(void) {
 }
 
-CASADI_SYMBOL_EXPORT void drone_ode_constr_h_fun_jac_uxt_zt_decref(void) {
+CASADI_SYMBOL_EXPORT void drone_ode_constr_h_0_fun_jac_uxt_zt_decref(void) {
 }
 
-CASADI_SYMBOL_EXPORT casadi_int drone_ode_constr_h_fun_jac_uxt_zt_n_in(void) { return 4;}
+CASADI_SYMBOL_EXPORT casadi_int drone_ode_constr_h_0_fun_jac_uxt_zt_n_in(void) { return 4;}
 
-CASADI_SYMBOL_EXPORT casadi_int drone_ode_constr_h_fun_jac_uxt_zt_n_out(void) { return 3;}
+CASADI_SYMBOL_EXPORT casadi_int drone_ode_constr_h_0_fun_jac_uxt_zt_n_out(void) { return 3;}
 
-CASADI_SYMBOL_EXPORT casadi_real drone_ode_constr_h_fun_jac_uxt_zt_default_in(casadi_int i) {
+CASADI_SYMBOL_EXPORT casadi_real drone_ode_constr_h_0_fun_jac_uxt_zt_default_in(casadi_int i) {
   switch (i) {
     default: return 0;
   }
 }
 
-CASADI_SYMBOL_EXPORT const char* drone_ode_constr_h_fun_jac_uxt_zt_name_in(casadi_int i) {
+CASADI_SYMBOL_EXPORT const char* drone_ode_constr_h_0_fun_jac_uxt_zt_name_in(casadi_int i) {
   switch (i) {
     case 0: return "i0";
     case 1: return "i1";
@@ -139,7 +139,7 @@ CASADI_SYMBOL_EXPORT const char* drone_ode_constr_h_fun_jac_uxt_zt_name_in(casad
   }
 }
 
-CASADI_SYMBOL_EXPORT const char* drone_ode_constr_h_fun_jac_uxt_zt_name_out(casadi_int i) {
+CASADI_SYMBOL_EXPORT const char* drone_ode_constr_h_0_fun_jac_uxt_zt_name_out(casadi_int i) {
   switch (i) {
     case 0: return "o0";
     case 1: return "o1";
@@ -148,7 +148,7 @@ CASADI_SYMBOL_EXPORT const char* drone_ode_constr_h_fun_jac_uxt_zt_name_out(casa
   }
 }
 
-CASADI_SYMBOL_EXPORT const casadi_int* drone_ode_constr_h_fun_jac_uxt_zt_sparsity_in(casadi_int i) {
+CASADI_SYMBOL_EXPORT const casadi_int* drone_ode_constr_h_0_fun_jac_uxt_zt_sparsity_in(casadi_int i) {
   switch (i) {
     case 0: return casadi_s0;
     case 1: return casadi_s1;
@@ -158,7 +158,7 @@ CASADI_SYMBOL_EXPORT const casadi_int* drone_ode_constr_h_fun_jac_uxt_zt_sparsit
   }
 }
 
-CASADI_SYMBOL_EXPORT const casadi_int* drone_ode_constr_h_fun_jac_uxt_zt_sparsity_out(casadi_int i) {
+CASADI_SYMBOL_EXPORT const casadi_int* drone_ode_constr_h_0_fun_jac_uxt_zt_sparsity_out(casadi_int i) {
   switch (i) {
     case 0: return casadi_s4;
     case 1: return casadi_s5;
@@ -167,7 +167,7 @@ CASADI_SYMBOL_EXPORT const casadi_int* drone_ode_constr_h_fun_jac_uxt_zt_sparsit
   }
 }
 
-CASADI_SYMBOL_EXPORT int drone_ode_constr_h_fun_jac_uxt_zt_work(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
+CASADI_SYMBOL_EXPORT int drone_ode_constr_h_0_fun_jac_uxt_zt_work(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
   if (sz_arg) *sz_arg = 4;
   if (sz_res) *sz_res = 3;
   if (sz_iw) *sz_iw = 0;
@@ -175,7 +175,7 @@ CASADI_SYMBOL_EXPORT int drone_ode_constr_h_fun_jac_uxt_zt_work(casadi_int *sz_a
   return 0;
 }
 
-CASADI_SYMBOL_EXPORT int drone_ode_constr_h_fun_jac_uxt_zt_work_bytes(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
+CASADI_SYMBOL_EXPORT int drone_ode_constr_h_0_fun_jac_uxt_zt_work_bytes(casadi_int *sz_arg, casadi_int* sz_res, casadi_int *sz_iw, casadi_int *sz_w) {
   if (sz_arg) *sz_arg = 4*sizeof(const casadi_real*);
   if (sz_res) *sz_res = 3*sizeof(casadi_real*);
   if (sz_iw) *sz_iw = 0*sizeof(casadi_int);
