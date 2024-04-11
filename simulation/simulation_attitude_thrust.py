@@ -22,12 +22,12 @@ from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 from drone_model_attitude_thrust import export_drone_ode_model
 
 
-N_horizon = 20
-Tf = 1
+N_horizon = 40
+Tf = 2
 nx = 11
 nu = 4
 Tmax = 10
-Tmin = 0.1
+Tmin = 0
 
 
 # parameters for ACAODS MPC
@@ -244,7 +244,7 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.parameter_values = parameters
 
     # define weighing matrices
-    Q_mat = np.eye(6)
+    Q_mat = np.eye(6)*0
     Q_mat[0, 0] = 2
     Q_mat[1, 1] = 2
     Q_mat[2, 2] = 8
@@ -267,8 +267,8 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.cost.cost_type = "EXTERNAL"
     ocp.cost.cost_type_e = "EXTERNAL"
 
-    print(x)
-    ocp.model.cost_expr_ext_cost =  u.T @ R_mat @ u
+    
+    ocp.model.cost_expr_ext_cost =  (error_function(ref, x).T @ Q_mat @ error_function(ref, x)) + u.T @ R_mat @ u
     ocp.model.cost_expr_ext_cost_e = (error_function(ref, x).T @ Q_mat_final @ error_function(ref, x))
 
     # set constraints
@@ -287,6 +287,8 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.solver_options.tf = Tf
 
 
+
+    ocp.solver_options.qp_solver_warm_start = 1
     # create ACADOS solver
     solver_json = "acados_ocp_" + model.name + ".json"
 
@@ -314,7 +316,7 @@ def main(use_RTI=False):
     for i in range(Nsim):
         
         # set different setpoint for attitude
-        if i == 10:
+        if i == 50:
             q_ref = euler_to_quaternion(np.array([0, 20, 0]))
             y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
             
@@ -323,6 +325,8 @@ def main(use_RTI=False):
 
                 ocp_solver.set(j, "p", parameters)
             ocp_solver.set(N_horizon, "p", parameters)
+            
+        
        
         #alternative method for setting x0
         #ocp_solver.set(0, 'lbx', simX[i, :])

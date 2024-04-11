@@ -64,17 +64,7 @@ def quat_rotation_old(q, v):
     
     return rotated_vec
 
-def omega_mat(w):
-    
-    w_x = w[0]
-    w_y = w[1]
-    w_z = w[2]
-    
-    omega_w = vertcat(horzcat(0, -w_x, -w_y, -w_z),
-                    horzcat(w_x,  0, w_z,  -w_y),
-                    horzcat(w_y,  -w_z,  0, w_x),
-                    horzcat(w_z, w_y,  -w_x,  0))
-    return omega_w
+
 
 
 # Function to compute the quaternion product matrix for quaternion multiplication
@@ -111,22 +101,21 @@ def export_drone_ode_model() -> AcadosModel:
     q_ref = SX.sym('q_ref', 4)
     v_ref = SX.sym('v_ref', 3)
     w_ref = SX.sym('w_ref', 3)
-    #T_ref = SX.sym('T_ref', 4)
 
 
     params = vertcat(m, g, jxx, jyy, jzz, d_x0, d_x1, d_x2, d_x3, d_y0, d_y1, d_y2, d_y3, c_tau, p_ref, q_ref, v_ref, w_ref)
 
 
-
+    
 
     # Define state variables
     p_WB = SX.sym('p_WB', 3)  # Position of the quadrotor (x, y, z)
     q_WB = SX.sym('q_WB', 4)  # Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
     v_WB = SX.sym('v_WB', 3)  # Linear velocity of the quadrotor
     omega_B = SX.sym('omega_B', 3)  # Angular velocity of the quadrotor in body frame
-    #thrust = SX.sym('T', 4)
+    thrust = SX.sym('T', 4)
 
-    x = vertcat(p_WB, q_WB, v_WB, omega_B)
+    x = vertcat(p_WB, q_WB, v_WB, omega_B, thrust)
 
     # Define control inputs
     thrust_set = SX.sym('T_set', 4)  # Thrust produced by the rotors
@@ -141,19 +130,20 @@ def export_drone_ode_model() -> AcadosModel:
     q_WB_dot = SX.sym('q_WB_dot', 4)        # derivative of Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
     v_WB_dot = SX.sym('v_WB_dot', 3)        # derivative of Linear velocity of the quadrotor
     omega_B_dot = SX.sym('omega_B_dot', 3)  # derivative of Angular velocity of the quadrotor in body frame
-    #thrust_dot = SX.sym('T_dot', 4)
+    thrust_dot = SX.sym('T_dot', 4)
 
-    xdot = vertcat(p_WB_dot, q_WB_dot, v_WB_dot, omega_B_dot)
-
+    xdot = vertcat(p_WB_dot, q_WB_dot, v_WB_dot, omega_B_dot, thrust_dot)
+    
     #0.5 * mtimes(quaternion_product_matrix(q_WB),vertcat(0, omega_B))
     #quat_derivative(q_WB, omega_B),
+    
+    
     f_expl = vertcat(v_WB,
                     quat_derivative(q_WB, omega_B),
                     quat_rotation(vertcat(0,0,sum1(thrust_set)), q_WB) / m + vertcat(0,0,g),
-                    inv(J) @ ((P @ thrust_set - cross( omega_B , J @ omega_B)) )                    
+                    inv(J) @ ((P @ thrust_set - cross( omega_B , J @ omega_B)) ) ,
+                    (thrust_set - thrust)*10                   
                     )
-    
-
     
 
     f_impl = xdot - f_expl
