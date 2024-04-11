@@ -380,7 +380,7 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     // initialize parameters to nominal value
     double* p = calloc(NP, sizeof(double));
     p[0] = 1.5;
-    p[1] = 9.81;
+    p[1] = -9.81;
     p[2] = 0.029125;
     p[3] = 0.029125;
     p[4] = 0.055225;
@@ -392,7 +392,7 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     p[10] = 0.0935;
     p[11] = 0.0935;
     p[12] = 0.0935;
-    p[13] = 0.000806428;
+    p[13] = 0.005;
     p[14] = 1;
 
     for (int i = 0; i <= N; i++) {
@@ -526,9 +526,13 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbu = lubu;
     double* ubu = lubu + NBU;
     
+    lbu[0] = 0.1;
     ubu[0] = 10;
+    lbu[1] = 0.1;
     ubu[1] = 10;
+    lbu[2] = 0.1;
     ubu[2] = 10;
+    lbu[3] = 0.1;
     ubu[3] = 10;
 
     for (int i = 0; i < N; i++)
@@ -622,7 +626,7 @@ int fixed_hess = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 40;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 20;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 
@@ -655,7 +659,7 @@ int fixed_hess = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_ric_alg", &qp_solver_ric_alg);
 
 
-    int ext_cost_num_hess = true;
+    int ext_cost_num_hess = 0;
     for (int i = 0; i < N; i++)
     {
         ocp_nlp_solver_opts_set_at_stage(nlp_config, nlp_opts, i, "cost_numerical_hessian", &ext_cost_num_hess);

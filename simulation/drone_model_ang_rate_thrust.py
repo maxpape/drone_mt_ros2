@@ -34,54 +34,6 @@ import spatial_casadi as sc
 import numpy as np
 
 
-def sx_quat_inverse(q):
-
-    return SX([1, -1, -1, -1]) * q / (norm_2(q) ** 2)
-
-
-def sx_quat_multiply(q, p):
-
-    s1 = q[0]
-    v1 = q[1:4]
-    s2 = p[0]
-    v2 = p[1:4]
-    s = s1 * s2 - dot(v1, v2)
-    v = s1 * v2 + s2 * v1 + cross(v1, v2)
-    return vertcat(s, v)
-
-
-def quat_derivative(q, w):
-
-    return sx_quat_multiply(q, vertcat(SX(0), w) / 2)
-
-
-def quat_rotation(v, q):
-
-    p = vertcat(SX(0), v)
-    p_rotated = sx_quat_multiply(sx_quat_multiply(q, p), sx_quat_inverse(q))
-    return p_rotated[1:4]
-
-
-def quat_rotation_old(q, v):
-    rot_mat = sc.Rotation.from_quat(q).as_matrix()
-
-    rotated_vec = mtimes(rot_mat, v)
-
-    return rotated_vec
-
-
-# Function to compute the quaternion product matrix for quaternion multiplication
-def quaternion_product_matrix(quat):
-
-    w, x, y, z = quat[0], quat[1], quat[2], quat[3]
-    return vertcat(
-        horzcat(w, -x, -y, -z),
-        horzcat(x, w, -z, y),
-        horzcat(y, z, w, -x),
-        horzcat(z, -y, x, w),
-    )
-
-
 def export_drone_ode_model() -> AcadosModel:
 
     model_name = "drone_ode"
@@ -103,7 +55,6 @@ def export_drone_ode_model() -> AcadosModel:
     d_y3 = SX.sym("d_y3")
     c_tau = SX.sym("c_tau")
 
-    q_ref = SX.sym("q_ref", 4)
     w_ref = SX.sym("w_ref", 3)
 
     params = vertcat(
@@ -121,14 +72,13 @@ def export_drone_ode_model() -> AcadosModel:
         d_y2,
         d_y3,
         c_tau,
-        q_ref,
         w_ref,
     )
 
+    # fill parameter matrices
     J = vertcat(
         horzcat(jxx, 0, 0), horzcat(0, jyy, 0), horzcat(0, 0, jzz)
     )  # Inertia matrix
-    
     P = vertcat(
         horzcat(-d_x0, -d_x1, d_x2, d_x3),
         horzcat(d_y0, -d_y1, -d_y2, d_y3),
@@ -136,22 +86,22 @@ def export_drone_ode_model() -> AcadosModel:
     )
 
     # Define state variables
-    q_WB = SX.sym("q_WB", 4)  # Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
+
     omega_B = SX.sym("omega_B", 3)  # Angular velocity of the quadrotor in body frame
     T = SX.sym("T", 4)  # thrust force of the motors
-    x = vertcat(q_WB, omega_B, T)
+    x = vertcat(omega_B, T)
 
     # Define control inputs
     T_set = SX.sym("T_set", 4)  # Thrust produced by the rotors
 
     # xdot
-    q_WB_dot = SX.sym("q_WB_dot", 4)  # derivative of Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
-    omega_B_dot = SX.sym("omega_B_dot", 3)  # derivative of Angular velocity of the quadrotor in body frame
+    omega_B_dot = SX.sym(
+        "omega_B_dot", 3
+    )  # derivative of Angular velocity of the quadrotor in body frame
     T_dot = SX.sym("T_dot", 4)  # derivative of thrust force motors
-    xdot = vertcat(q_WB_dot, omega_B_dot, T_dot)
+    xdot = vertcat(omega_B_dot, T_dot)
 
     f_expl = vertcat(
-        0.5 * mtimes(quaternion_product_matrix(q_WB), vertcat(0, omega_B)),
         mtimes(inv(J), ((mtimes(P, T) - cross(omega_B, mtimes(J, omega_B))))),
         (T_set - T) * 10,
     )

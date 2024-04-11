@@ -3,7 +3,7 @@ import numpy as np
 import scipy.linalg
 import scipy.interpolate
 import matplotlib.pyplot as plt
-from casadi import SX, vertcat, Function, sqrt, norm_2, dot, cross
+from casadi import SX, vertcat, horzcat, Function, sqrt, norm_2, dot, cross, mtimes
 import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
@@ -22,17 +22,17 @@ from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 from drone_model_attitude_thrust import export_drone_ode_model
 
 
-N_horizon = 40
-Tf = 2
+N_horizon = 20
+Tf = 1
 nx = 11
 nu = 4
 Tmax = 10
-Tmin = 0
+Tmin = 0.1
 
 
 # parameters for ACAODS MPC
 m = 1.5
-g = 9.81
+g = -9.81
 jxx = 0.029125
 jyy = 0.029125
 jzz = 0.055225
@@ -45,17 +45,20 @@ d_y1 = 0.0935
 d_y2 = 0.0935
 d_y3 = 0.0935
 c_tau = 0.000806428
-
+c_tau = 0.005
 
 x0 = np.asarray([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 setpoint = np.asarray([1, 0, 0, 0, 0, 0, 0])
 
+#setpoint = np.array([0.93969262, 0.34202014, 0., 0., 0., 0., 0.])
 
+
+# fixed parameters
 params = np.asarray(
     [m, g, jxx, jyy, jzz, d_x0, d_x1, d_x2, d_x3, d_y0, d_y1, d_y2, d_y3, c_tau]
 )
 
-
+# parameters with setpoint
 parameters = np.concatenate((params, setpoint), axis=None)
 
 
@@ -187,21 +190,6 @@ def quaternion_to_euler(q):
     return rotation.as_euler("xyz")
 
 
-def multiply_quaternions2(q1, q2):
-    # Extract components of the first quaternion
-    w1, x1, y1, z1 = q1[0], q1[1], q1[2], q1[3]
-
-    # Extract components of the second quaternion
-    w2, x2, y2, z2 = q2[0], q2[1], q2[2], q2[3]
-
-    # Compute the product of the two quaternions
-    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
-    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
-    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
-    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
-
-    # Return the result as a new quaternion
-    return vertcat(w, x, y, z)
 
 
 def multiply_quaternions(q, p):
@@ -224,7 +212,8 @@ def quaternion_error(q_ref, q):
 
     q_error = multiply_quaternions(q_ref, quaternion_inverse(q))
 
-    return q_error
+    return q_error[1:4]
+
 
 
 def error_function(y_ref, x):
@@ -236,8 +225,8 @@ def error_function(y_ref, x):
     q_ref = y_ref[0:4]
     omega_ref = y_ref[4:7]
 
-    q_err = quaternion_error(q_ref, x[0:4])
-    omega_err = omega_ref - x[4:7]
+    q_err = quaternion_error(y_ref[0:4], x[0:4])
+    omega_err = y_ref[4:7] - x[4:7]
 
     return vertcat(q_err, omega_err)
 
@@ -250,44 +239,37 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.model = model
 
     ocp.dims.N = N_horizon
-    ocp.dims.nh = 2
-    ocp.dims.nh_e = 2
+    
 
     ocp.parameter_values = parameters
 
     # define weighing matrices
-    Q_mat = np.eye(7) 
+    Q_mat = np.eye(6)
     Q_mat[0, 0] = 2
     Q_mat[1, 1] = 2
-    Q_mat[2, 2] = 2
-    Q_mat[3, 3] = 2
+    Q_mat[2, 2] = 8
+    
 
-    R_mat = np.eye(4) * 1
+    R_mat = np.eye(4) * 0.1
 
-    Q_mat_final = np.eye(7) 
-    Q_mat_final[0, 0] = 4
-    Q_mat_final[1, 1] = 4
-    Q_mat_final[2, 2] = 4
-    Q_mat_final[3, 3] = 4
+    Q_mat_final = np.eye(6)
+    Q_mat_final[0, 0] = 2
+    Q_mat_final[1, 1] = 2
+    Q_mat_final[2, 2] = 8
+    
 
     # set cost module
-    x = ocp.model.x
+    x = ocp.model.x[0:7]
     u = ocp.model.u
-
+    ref = ocp.model.p[14:]
+    
+    
     ocp.cost.cost_type = "EXTERNAL"
     ocp.cost.cost_type_e = "EXTERNAL"
 
-    ocp.model.cost_expr_ext_cost = (
-        error_function(ocp.model.p[14:], ocp.model.x[0:7]).T
-        @ Q_mat
-        @ error_function(ocp.model.p[14:], ocp.model.x[0:7])
-        + u.T @ R_mat @ u
-    )
-    ocp.model.cost_expr_ext_cost_e = (
-        error_function(ocp.model.p[14:], ocp.model.x[0:7]).T
-        @ Q_mat_final
-        @ error_function(ocp.model.p[14:], ocp.model.x[0:7])
-    )
+    print(x)
+    ocp.model.cost_expr_ext_cost =  u.T @ R_mat @ u
+    ocp.model.cost_expr_ext_cost_e = (error_function(ref, x).T @ Q_mat_final @ error_function(ref, x))
 
     # set constraints
 
@@ -295,49 +277,15 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.constraints.ubu = np.array([Tmax, Tmax, Tmax, Tmax])
     ocp.constraints.idxbu = np.array([0, 1, 2, 3])
 
-    
-
     # set initial state
     ocp.constraints.x0 = x0
-    angle_max = 30
+    
 
-    ### constrain q to have norm = 1
-    # q = SX.sym('q', 4)
-    q = model.x[0:4]
-    ##
-    #f_norm = Function('f_norm', [q], [sqrt(q[0]**2+q[1]**2+q[2]**2+q[3]**2)])
-    ## f_roll = Function('f_roll', [q], [quaternion_to_euler(q)[0]])
-    ## f_pitch = Function('f_pitch', [q], [quaternion_to_euler(q)[1]])
-    ####
-    ####
-    ##### constrain maximum angle of quadrotor
-    ####max_angle = 30 * np.pi / 180
-    ####
-    #ocp.model.con_h_expr = f_norm(q)
-    #ocp.constraints.lh = np.array([0.99]) # Lower bounds
-    #ocp.constraints.uh = np.array([1.01])  # Upper bounds
-#
-    ### copy for terminal shooting node
-    #ocp.model.con_h_expr_e = f_norm(q)
-    #ocp.constraints.lh_e = np.array([0.99])
-    #ocp.constraints.uh_e = np.array([1.01])
-    #
-    #ocp.model.con_h_expr_0 = f_norm(q)
-    #ocp.constraints.lh_0 = np.array([0.99])
-    #ocp.constraints.uh_0 = np.array([1.01])
-    #
 
     # set prediction horizon
     ocp.solver_options.qp_solver_cond_N = N_horizon
     ocp.solver_options.tf = Tf
 
-    # set solver options
-    # ocp.solver_options.integrator_type = 'ERK'
-    # ocp.solver_options.nlp_solver_type = 'SQP_RTI'
-    # ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_HPIPM'
-    # ocp.solver_options.qp_solver = 'FULL_CONDENSING_QPOASES'
-    ocp.solver_options.ext_cost_num_hess = True
-    # ocp.solver_options.hessian_approx = 'GAUSS_NEWTON'
 
     # create ACADOS solver
     solver_json = "acados_ocp_" + model.name + ".json"
@@ -360,51 +308,52 @@ def main(use_RTI=False):
 
     simX[0, :] = x0
 
-    t = np.zeros((Nsim))
-
+    
 
     # closed loop
     for i in range(Nsim):
         
-        
-        
-        
-        
-        
+        # set different setpoint for attitude
+        if i == 10:
+            q_ref = euler_to_quaternion(np.array([0, 20, 0]))
+            y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
+            
+            parameters = np.concatenate((params, y_ref), axis=None)
+            for j in range(N_horizon):
 
-        # if i >= 100:
-        #    q_ref = euler_to_quaternion(np.array([0,5,0]))
-        #    y_ref = np.concatenate((q_ref, np.zeros(3)), axis=None)
-        #    parameters = np.concatenate((params, y_ref), axis=None)
-        #    for j in range(N_horizon):
-        #
-        #        ocp_solver.set(j, "p", parameters)
-        #    ocp_solver.set(N_horizon, "p", parameters)
-        #
-        #simX[i, 0:4] = simX[i, 0:4] / np.linalg.norm(simX[i, 0:4])
-        #print(np.linalg.norm(simX[i, 0:4]))
+                ocp_solver.set(j, "p", parameters)
+            ocp_solver.set(N_horizon, "p", parameters)
+       
+        #alternative method for setting x0
         #ocp_solver.set(0, 'lbx', simX[i, :])
         #ocp_solver.set(0, 'ubx', simX[i, :])
         #status = ocp_solver.solve()
-        ###
-        simU[i,:] = ocp_solver.solve_for_x0(x0_bar = simX[i, :])
-        simX[i + 1, :] = ocp_solver.get(1, 'x')
+        #simU[i, :] = ocp_solver.get(0, 'u')
         
-        #simU[i,:] = ocp_solver.solve_for_x0(x0_bar = simX[i, :])
-
-        # t[i] = ocp_solver.get_stats('time_tot')
+       
+        simU[i, :] = ocp_solver.solve_for_x0(x0_bar=simX[i, :])
+        
+        # print cost for current iteration
+        #print(ocp_solver.get_cost())
+        
+        # check if q stays unit quaternion
+        x = ocp_solver.get(20, "x")
+        print(np.linalg.norm(x[0:4]))
+        
+        
 
         # simulate system
-        #simX[i+1, :] = integrator.simulate(x=simX[i, :], u=simU[i,:])
+        simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=simU[i, :])
 
-        #simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=np.array([0, 0, 1, 1]))
+        
+        # manual control input
+        #simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=np.array([5, 0, 5,0]))
 
     # plot results
-    #for x in simX:
-    #    print(np.linalg.norm(x[0:4]))
     plot_drone_euler(Nsim, Tf, simX, simU)
     ocp_solver = None
     integrator = None
+
 
 
 if __name__ == "__main__":
