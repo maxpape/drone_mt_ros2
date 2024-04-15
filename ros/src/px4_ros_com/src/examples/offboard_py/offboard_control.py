@@ -4,7 +4,7 @@ import rclpy
 import numpy as np
 import scipy.linalg
 import scipy.interpolate
-from casadi import SX, vertcat, Function, sqrt, norm_2, dot, cross
+from casadi import SX, vertcat, Function, sqrt, norm_2, dot, cross, atan2
 import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
@@ -92,8 +92,21 @@ def quaternion_inverse(q):
 def quaternion_error(q, q_ref):
     q_error = multiply_quaternions(q_ref, quaternion_inverse(q))
     
-    return q_error[1:4]
+    return q_error
 
+def error_funciton_old(x, y_ref):
+    """Error function for MPC
+        difference of position, velocity and angular velocity from reference
+        use sub-function for calculating quaternion error
+    """
+    p_ref = y_ref[0:3]
+    q_ref = y_ref[3:7]
+    
+    
+    p_err = x[0:3] - p_ref
+    q_err = quaternion_error(x[3:7], q_ref)
+    
+    return q_err
 def error_funciton(x, y_ref):
     """Error function for MPC
         difference of position, velocity and angular velocity from reference
@@ -101,18 +114,14 @@ def error_funciton(x, y_ref):
     """
     p_ref = y_ref[0:3]
     q_ref = y_ref[3:7]
-    v_ref = y_ref[7:10]
-    omega_ref = y_ref[10:13]
+    
     
     p_err = x[0:3] - p_ref
     q_err = quaternion_error(x[3:7], q_ref)
-    v_err = x[7:10] - v_ref
-    omega_err = x[10:13] - omega_ref
+    q_err = 2*atan2(norm_2(q_err[1:]), q_err[0])
     
-    
-    
+    return vertcat(p_err, q_err)
 
-    return vertcat(p_err, q_err, v_err, omega_err)
 
 class OffboardControl(Node):
     """Node for controlling a vehicle in offboard mode."""
@@ -136,6 +145,8 @@ class OffboardControl(Node):
             VehicleCommand, '/fmu/in/vehicle_command', qos_profile)
         self.motor_command_publisher = self.create_publisher(
             ActuatorMotors, '/fmu/in/actuator_motors', qos_profile)
+        self.motor_command_publisher_pseudo = self.create_publisher(
+            ActuatorMotors, '/fmu/in/actuator_motors_pseudo', qos_profile)
 
         # Create subscribers
         self.vehicle_local_position_subscriber = self.create_subscription(
@@ -312,23 +323,23 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_mat = np.eye(12)*0.1
-        #Q_mat[0,0] = 2
-        #Q_mat[1,1] = 2
-        #Q_mat[2,2] = 4
-        Q_mat[3,3] = 2
-        Q_mat[4,4] = 2
-        Q_mat[5,5] = 8
+        Q_mat = np.eye(4)
+        #Q_mat[0,0] = 0.5
+        #Q_mat[1,1] = 0.5
+        #Q_mat[2,2] = 0.5
+        #Q_mat[3,3] = 80
+        #Q_mat[4,4] = 80
+        #Q_mat[5,5] = 80
         
-        R_mat = np.eye(4) *0.1
+        R_mat = np.eye(4)*0.2
         
-        Q_mat_final = np.eye(12)
+        Q_mat_final = np.eye(4)
         #Q_mat_final[0,0] = 2
         #Q_mat_final[1,1] = 2
         #Q_mat_final[2,2] = 4
-        Q_mat_final[3,3] = 20
-        Q_mat_final[4,4] = 20
-        Q_mat_final[5,5] = 20       
+        #Q_mat_final[3,3] = 200
+        #Q_mat_final[4,4] = 200
+        #Q_mat_final[5,5] = 200       
 
         
         
@@ -337,9 +348,10 @@ class OffboardControl(Node):
         
         
         # set cost module
-        x = ocp.model.x[0:13]
+        x = ocp.model.x[0:7]
         u = ocp.model.u
-        ref = ocp.model.p[14:]
+        ref = ocp.model.p[14:21]
+        
         
         
         ocp.cost.cost_type = 'EXTERNAL'
@@ -424,7 +436,9 @@ class OffboardControl(Node):
         
         self.position = self.NED_to_ENU(vehicle_odometry.position)
         self.velocity = self.NED_to_ENU(vehicle_odometry.velocity)
-        self.attitude = self.NED_to_ENU(vehicle_odometry.q)
+        
+        #self.attitude = self.NED_to_ENU(vehicle_odometry.q)
+        self.attitude = self.NED_to_ENU(np.array([1,0,0,0]))
         self.angular_velocity = self.NED_to_ENU(vehicle_odometry.angular_velocity)
               
     
@@ -545,12 +559,30 @@ class OffboardControl(Node):
         msg = ActuatorMotors()
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         
+        #params = self.get_parameters(
+        #    ['motor_speed_0', 'motor_speed_1', 'motor_speed_2', 'motor_speed_3'])
+        #
+        #control = np.asarray([p.value for p in params])
+        
+        msg.control[0] = control[0]  # Motor 1
+        msg.control[1] = control[2]  # Motor 2
+        msg.control[2] = control[3]  # Motor 3
+        msg.control[3] = control[1]  # Motor 4
+        
+        self.motor_command_publisher.publish(msg)
+        #self.get_logger().info('Publishing: "%s"' % control)
+        
+    def publish_motor_command_pseudo(self, control):
+        """Publish the motor command setpoint."""
+        msg = ActuatorMotors()
+        msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
+        
         msg.control[0] = control[0]  # Motor 1
         msg.control[1] = control[1]  # Motor 2
         msg.control[2] = control[2]  # Motor 3
         msg.control[3] = control[3]  # Motor 4
         
-        self.motor_command_publisher.publish(msg)
+        self.motor_command_publisher_pseudo.publish(msg)
         #self.get_logger().info('Publishing: "%s"' % control)
     
     def publish_vehicle_command(self, command, **params) -> None:
@@ -613,13 +645,14 @@ class OffboardControl(Node):
             
             q = self.ocp_solver.get(40, 'x')[3:7]
             cost = self.ocp_solver.get_cost()
-            print(cost)
+            #print(cost)
+            #print(q_to_eu(self.attitude))
             #self.current_state[13:] = U
             
             
             
             
-            command = np.asarray([self.map_logarithmic(u)-0.2 for u in U])
+            command = np.asarray([self.map_logarithmic(u)*0.8 for u in U])
             #print(self.parameters[14:])
             #print(self.ocp_solver.get_cost())
             #print(U)
@@ -628,11 +661,13 @@ class OffboardControl(Node):
             
             #print(self.setpoint)
             #print(current_state)
-            #print(U)
-            #print(q_to_eu(self.current_state[3:7]))
-            #print(command)
             print(command)
+            #
+            #print(self.attitude)
+            #print(attitude_setpoint)
+            #print(command)
             self.publish_motor_command(command)
+            #self.publish_motor_command_pseudo(command)
             
         if self.offboard_setpoint_counter < 11:
             self.offboard_setpoint_counter += 1

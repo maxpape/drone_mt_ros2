@@ -228,6 +228,8 @@ def error_function(y_ref, x):
     q_err = quaternion_error(y_ref[0:4], x[0:4])
     omega_err = y_ref[4:7] - x[4:7]
 
+    
+    
     return vertcat(q_err, omega_err)
 
 
@@ -244,19 +246,20 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.parameter_values = parameters
 
     # define weighing matrices
-    Q_mat = np.eye(6)*0
+    Q_mat = np.eye(6)*0.1
     Q_mat[0, 0] = 2
     Q_mat[1, 1] = 2
-    Q_mat[2, 2] = 8
+    Q_mat[2, 2] = 2
+    Q_mat[3, 3] = 2
     
 
     R_mat = np.eye(4) * 0.1
 
-    Q_mat_final = np.eye(6)
+    Q_mat_final = np.eye(6)*0.1
     Q_mat_final[0, 0] = 2
     Q_mat_final[1, 1] = 2
-    Q_mat_final[2, 2] = 8
-    
+    Q_mat_final[2, 2] = 2
+    Q_mat_final[3, 3] = 2
 
     # set cost module
     x = ocp.model.x[0:7]
@@ -317,7 +320,7 @@ def main(use_RTI=False):
         
         # set different setpoint for attitude
         if i == 50:
-            q_ref = euler_to_quaternion(np.array([0, 20, 0]))
+            q_ref = euler_to_quaternion(np.array([0, -20, 0]))
             y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
             
             parameters = np.concatenate((params, y_ref), axis=None)
