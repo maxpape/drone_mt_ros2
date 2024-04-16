@@ -125,6 +125,7 @@ def export_drone_ode_model() -> AcadosModel:
         w_ref,
     )
 
+
     J = vertcat(
         horzcat(jxx, 0, 0), horzcat(0, jyy, 0), horzcat(0, 0, jzz)
     )  # Inertia matrix

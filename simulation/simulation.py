@@ -19,19 +19,21 @@ from px4_msgs.msg import (
 )
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, FloatingPointRange
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
-from drone_model_attitude_thrust import export_drone_ode_model
+from drone_model import export_drone_ode_model
 
 
 N_horizon = 40
 Tf = 2
-nx = 11
+nx = 17
 nu = 4
 Tmax = 10
 Tmin = 0
+vmax = 4
+angular_vmax = 0.5
 
 
 # parameters for ACAODS MPC
-m = 1.5
+m = 2.0
 g = -9.81
 jxx = 0.029125
 jyy = 0.029125
@@ -45,10 +47,10 @@ d_y1 = 0.0935
 d_y2 = 0.0935
 d_y3 = 0.0935
 c_tau = 0.000806428
-c_tau = 0.005
+#c_tau = 0.005
 
-x0 = np.asarray([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
-setpoint = np.asarray([1, 0, 0, 0, 0, 0, 0])
+x0 = np.asarray([0,0,0,1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+setpoint = np.asarray([0, 0, 0, 1, 0, 0, 0])
 
 #setpoint = np.array([0.93969262, 0.34202014, 0., 0., 0., 0., 0.])
 
@@ -97,7 +99,7 @@ def plot_drone_euler(N, Tf, simX, U):
     # Plot the columns of 'U' array
     for i in range(U.shape[1]):
 
-        axs[i].plot(time, U[:, i])
+        axs[i].plot(time, (U[:, i]/10*1100))
         axs[i].set_ylabel(f"U column {i+1}")
 
     # Plot the columns of 'simX' array
@@ -136,7 +138,7 @@ def plot_drone(N, Tf, simX, U):
     # Plot the columns of 'U' array
     for i in range(U.shape[1]):
 
-        axs[i].plot(time, U[:, i])
+        axs[i].plot(time, U[:, i]/10*1100)
         axs[i].set_ylabel(f"U column {i+1}")
 
     # Plot the columns of 'simX' array
@@ -208,46 +210,44 @@ def quaternion_inverse(q):
     return SX([1, -1, -1, -1]) * q / (norm_2(q) ** 2)
 
 
-def quaternion_error(q_ref, q):
-
+def quaternion_error(q, q_ref):
     q_error = multiply_quaternions(q_ref, quaternion_inverse(q))
-
-    return q_error[1:4]
-
-
-
-def error_function(y_ref, x):
-    """Error function for MPC
-    difference of position, velocity and angular velocity from reference
-    use sub-function for calculating quaternion error
-    """
-
-    q_ref = y_ref[0:4]
-    omega_ref = y_ref[4:7]
-
-    q_err = quaternion_error(y_ref[0:4], x[0:4])
-    omega_err = y_ref[4:7] - x[4:7]
-
     
-    
-    return vertcat(q_err, omega_err)
+    return q_error[1:]
 
 
-def error_function_old(y_ref, x):
+
+def error_function_old(x, y_ref):
     """Error function for MPC
         difference of position, velocity and angular velocity from reference
         use sub-function for calculating quaternion error
     """
+    p_ref = y_ref[0:3]
+    q_ref = y_ref[3:7]
     
     
-    
-    
-    
-    q_err = quaternion_error(y_ref[0:4], x[0:4])
+    p_err = x[0:3] - p_ref
+    q_err = quaternion_error(x[3:7], q_ref)
     q_err = 2*atan2(norm_2(q_err[1:]), q_err[0])
-    omega_err = y_ref[4:7] - x[4:7]
     
-    return vertcat(q_err, omega_err)
+    return p_err
+    return vertcat(p_err, q_err)
+
+
+def error_function(x, y_ref):
+    """Error function for MPC
+        difference of position, velocity and angular velocity from reference
+        use sub-function for calculating quaternion error
+    """
+    p_ref = y_ref[0:3]
+    q_ref = y_ref[3:7]
+    
+    
+    p_err = x[0:3] - p_ref
+    q_err = quaternion_error(x[3:7], q_ref)
+    
+    
+    return vertcat(p_err, q_err)
 
 def setup(x0, N_horizon, Tf, RTI=False):
     ocp = AcadosOcp()
@@ -262,25 +262,26 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.parameter_values = parameters
 
     # define weighing matrices
-    Q_mat = np.eye(6)*0.1
-    Q_mat[0, 0] = 2
-    Q_mat[1, 1] = 2
-    Q_mat[2, 2] = 2
-    
+    Q_mat = np.eye(6)
+    #Q_mat[0, 0] = 2
+    #Q_mat[1, 1] = 2
+    #Q_mat[2, 2] = 2
+    #Q_mat[3, 3] = 2
     
 
-    R_mat = np.eye(4) 
+    R_mat = np.eye(4)*0.2
 
-    Q_mat_final = np.eye(6)*0.1
-    Q_mat_final[0, 0] = 2
-    Q_mat_final[1, 1] = 2
-    Q_mat_final[2, 2] = 2
+    Q_mat_final = np.eye(6)*2
+    #Q_mat_final[0, 0] = 2
+    #Q_mat_final[1, 1] = 2
+    #Q_mat_final[2, 2] = 2
     #Q_mat_final[3, 3] = 2
 
     # set cost module
     x = ocp.model.x[0:7]
     u = ocp.model.u
-    ref = ocp.model.p[14:]
+    ref = ocp.model.p[14:21]
+    
     
     
     ocp.cost.cost_type = "EXTERNAL"
@@ -291,10 +292,18 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.model.cost_expr_ext_cost_e = (error_function(ref, x).T @ Q_mat_final @ error_function(ref, x))
 
     # set constraints
-
+        
+    
+            
     ocp.constraints.lbu = np.array([Tmin, Tmin, Tmin, Tmin])
     ocp.constraints.ubu = np.array([Tmax, Tmax, Tmax, Tmax])
     ocp.constraints.idxbu = np.array([0, 1, 2, 3])
+
+    
+    ocp.constraints.lbx = np.array([-vmax, -vmax, -vmax, -angular_vmax, -angular_vmax, -angular_vmax, Tmin, Tmin, Tmin, Tmin])
+    ocp.constraints.ubx = np.array([+vmax, +vmax, +vmax, +angular_vmax, +angular_vmax, +angular_vmax, Tmax, Tmax, Tmax, Tmax])
+    ocp.constraints.idxbx = np.array([7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
+              
 
     # set initial state
     ocp.constraints.x0 = x0
@@ -306,7 +315,7 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.solver_options.tf = Tf
 
 
-
+    ocp.solver_options.levenberg_marquardt = 1.5
     ocp.solver_options.qp_solver_warm_start = 1
     # create ACADOS solver
     solver_json = "acados_ocp_" + model.name + ".json"
@@ -336,8 +345,8 @@ def main(use_RTI=False):
         
         # set different setpoint for attitude
         if i == 50:
-            q_ref = euler_to_quaternion(np.array([0, 20, 0]))
-            y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
+            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
+            y_ref = np.concatenate((np.array([0, 0, 5]), q_ref ), axis=None)
             
             parameters = np.concatenate((params, y_ref), axis=None)
             for j in range(N_horizon):
@@ -356,12 +365,13 @@ def main(use_RTI=False):
        
         simU[i, :] = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=False)
         
+        print(ocp_solver.get_cost())
         # print cost for current iteration
         #print(ocp_solver.get_cost())
         
         # check if q stays unit quaternion
         x = ocp_solver.get(20, "x")
-        print(np.linalg.norm(x[0:4]))
+        #print(np.linalg.norm(x[0:4]))
         
         
 
@@ -370,10 +380,10 @@ def main(use_RTI=False):
 
         
         # manual control input
-        #simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=np.array([5, 0, 5,0]))
+        #simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=np.array([0,0,0,0]))
 
     # plot results
-    plot_drone_euler(Nsim, Tf, simX, simU)
+    plot_drone(Nsim, Tf, simX, simU)
     ocp_solver = None
     integrator = None
 

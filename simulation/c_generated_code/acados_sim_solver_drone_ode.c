@@ -169,7 +169,7 @@ int drone_ode_acados_sim_create(drone_ode_sim_solver_capsule * capsule)
     /* initialize parameter values */
     double* p = calloc(np, sizeof(double));
     
-    p[0] = 1.5;
+    p[0] = 2;
     p[1] = -9.81;
     p[2] = 0.029125;
     p[3] = 0.029125;
@@ -182,8 +182,8 @@ int drone_ode_acados_sim_create(drone_ode_sim_solver_capsule * capsule)
     p[10] = 0.0935;
     p[11] = 0.0935;
     p[12] = 0.0935;
-    p[13] = 0.005;
-    p[14] = 1;
+    p[13] = 0.000806428;
+    p[17] = 1;
 
     drone_ode_acados_sim_update_params(capsule, p, np);
     free(p);
@@ -191,8 +191,8 @@ int drone_ode_acados_sim_create(drone_ode_sim_solver_capsule * capsule)
 
     /* initialize input */
     // x
-    double x0[11];
-    for (int ii = 0; ii < 11; ii++)
+    double x0[17];
+    for (int ii = 0; ii < 17; ii++)
         x0[ii] = 0.0;
 
     sim_in_set(drone_ode_sim_config, drone_ode_sim_dims,
@@ -208,11 +208,11 @@ int drone_ode_acados_sim_create(drone_ode_sim_solver_capsule * capsule)
                drone_ode_sim_in, "u", u0);
 
     // S_forw
-    double S_forw[165];
-    for (int ii = 0; ii < 165; ii++)
+    double S_forw[357];
+    for (int ii = 0; ii < 357; ii++)
         S_forw[ii] = 0.0;
-    for (int ii = 0; ii < 11; ii++)
-        S_forw[ii + ii * 11 ] = 1.0;
+    for (int ii = 0; ii < 17; ii++)
+        S_forw[ii + ii * 17 ] = 1.0;
 
 
     sim_in_set(drone_ode_sim_config, drone_ode_sim_dims,

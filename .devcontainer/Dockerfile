@@ -14,14 +14,18 @@ RUN groupadd --gid $USER_GID $USERNAME \
 # Switch from root to user
 USER $USERNAME
 
-# Add user to video group to allow access to webcam
+# Add user to video and render group to allow access to webcam and graphics
 RUN sudo usermod --append --groups video $USERNAME
+
 
 # Update all packages
 RUN sudo apt update && sudo apt upgrade -y
 
+
+
 # Install Git
-RUN sudo apt install -y git
+RUN sudo apt install -y git libgl1-mesa-glx libgl1-mesa-dri 
+
 
 # Rosdep update
 RUN rosdep update

@@ -4,6 +4,7 @@ import rclpy
 import numpy as np
 import scipy.linalg
 import scipy.interpolate
+import time
 from casadi import SX, vertcat, Function, sqrt, norm_2, dot, cross, atan2
 import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
@@ -89,12 +90,19 @@ def quaternion_inverse(q):
 
     return SX([1, -1, -1, -1]) * q / (norm_2(q)**2)
 
-def quaternion_error(q, q_ref):
+def quaternion_error(q_ref, q):
     q_error = multiply_quaternions(q_ref, quaternion_inverse(q))
     
-    return q_error
+    return q_error[1:]
 
-def error_funciton_old(x, y_ref):
+def quat_error_euler(q_ref, q):
+    ref = quaternion_to_euler(q_ref)
+    actual = quaternion_to_euler(q)
+    
+    return vertcat(actual[0]-ref[0], actual[1]-ref[1], actual[2]-ref[2])
+    
+
+def error_function(x, y_ref):
     """Error function for MPC
         difference of position, velocity and angular velocity from reference
         use sub-function for calculating quaternion error
@@ -104,10 +112,12 @@ def error_funciton_old(x, y_ref):
     
     
     p_err = x[0:3] - p_ref
-    q_err = quaternion_error(x[3:7], q_ref)
+    #q_err = quaternion_error(x[3:7], q_ref)
+    q_err = quat_error_euler(q_ref, x[3:7])
     
-    return q_err
-def error_funciton(x, y_ref):
+    return vertcat(p_err, q_err)
+
+def error_function_old(x, y_ref):
     """Error function for MPC
         difference of position, velocity and angular velocity from reference
         use sub-function for calculating quaternion error
@@ -149,8 +159,8 @@ class OffboardControl(Node):
             ActuatorMotors, '/fmu/in/actuator_motors_pseudo', qos_profile)
 
         # Create subscribers
-        self.vehicle_local_position_subscriber = self.create_subscription(
-            VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
+        #self.vehicle_local_position_subscriber = self.create_subscription(
+        #    VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
         self.vehicle_status_subscriber = self.create_subscription(
             VehicleStatus, '/fmu/out/vehicle_status', self.vehicle_status_callback, qos_profile)
         self.vehicle_odometry_subscriber = self.create_subscription(
@@ -175,11 +185,10 @@ class OffboardControl(Node):
         self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
         
         #setpoint variables
-        self.position_setpoint = np.zeros(3)
+        self.position_setpoint = np.array([0,0,0])
         self.velocity_setpoint = np.zeros(3)
         self.attitude_setpoint = np.asarray([np.sqrt(2)/2,0,0,-np.sqrt(2)/2])
         self.angular_velocity_setpoint = np.zeros(3)
-        #self.thrust_setpoint = np.zeros(4)
         self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
         
 
@@ -239,9 +248,9 @@ class OffboardControl(Node):
             description='Desired pangle',     # Description of the parameter
             additional_constraints='Range: -180 to 180',
             floating_point_range=[FloatingPointRange(
-                from_value=-180.0,  # Minimum value
-                to_value=180.0,     # Maximum value
-                step=1.0         # Step size (optional)
+                from_value=-100.0,  # Minimum value
+                to_value=100.0,     # Maximum value
+                step=0.1         # Step size (optional)
             )]# Constraints (optional)
         )
         
@@ -258,16 +267,19 @@ class OffboardControl(Node):
         
         
         
-        self.N_horizon = 40
-        self.Tf = 2
+        self.N_horizon = 100
+        self.Tf = 5
         self.nx = 17
         self.nu = 4
-        self.Tmax = 5
-        self.Tmin = 0.1
+        self.Tmax = 10
+        self.Tmin = 1
+        self.vmax = 1
+        self.angular_vmax = 0.5
         self.max_motor_rpm = 1100
         
         # parameters for ACAODS MPC
-        self.m = 1.5
+        self.m = 1.8
+        
         self.g = -9.81
         self.jxx = 0.029125
         self.jyy = 0.029125
@@ -280,8 +292,8 @@ class OffboardControl(Node):
         self.d_y1 = 0.0935
         self.d_y2 = 0.0935
         self.d_y3 = 0.0935
-        self.c_tau = 0.000806428
-        #self.c_tau = 0.00806428
+        #self.c_tau = 0.000806428
+        self.c_tau = 0.0806428
         
         
         self.params = np.asarray([self.m,
@@ -323,23 +335,24 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_mat = np.eye(4)
-        #Q_mat[0,0] = 0.5
-        #Q_mat[1,1] = 0.5
-        #Q_mat[2,2] = 0.5
-        #Q_mat[3,3] = 80
-        #Q_mat[4,4] = 80
-        #Q_mat[5,5] = 80
+        Q_mat = np.eye(6)
         
-        R_mat = np.eye(4)*0.2
+        #Q_mat[0,0] = 1
+        #Q_mat[1,1] = 1
+        #Q_mat[2,2] = 1
+        Q_mat[3,3] = 5000
+        Q_mat[4,4] = 5000
+        Q_mat[5,5] = 5000
         
-        Q_mat_final = np.eye(4)
-        #Q_mat_final[0,0] = 2
-        #Q_mat_final[1,1] = 2
-        #Q_mat_final[2,2] = 4
-        #Q_mat_final[3,3] = 200
-        #Q_mat_final[4,4] = 200
-        #Q_mat_final[5,5] = 200       
+        R_mat = np.eye(4)
+        
+        Q_mat_final = np.eye(6)*2
+        ##Q_mat_final[0,0] = 1
+        ##Q_mat_final[1,1] = 1
+        ##Q_mat_final[2,2] = 1
+        Q_mat_final[3,3] = 10000
+        Q_mat_final[4,4] = 10000
+        Q_mat_final[5,5] = 10000   
 
         
         
@@ -358,21 +371,24 @@ class OffboardControl(Node):
         ocp.cost.cost_type_e = 'EXTERNAL'
         
         
-        ocp.model.cost_expr_ext_cost = error_funciton(x, ref).T @ Q_mat @ error_funciton(x,ref) + u.T @ R_mat @ u
-        ocp.model.cost_expr_ext_cost_e = error_funciton(x, ref).T @ Q_mat_final @ error_funciton(x, ref)
+        ocp.model.cost_expr_ext_cost = error_function(x, ref).T @ Q_mat @ error_function(x,ref) + u.T @ R_mat @ u
+        ocp.model.cost_expr_ext_cost_e = error_function(x, ref).T @ Q_mat_final @ error_function(x, ref)
         
         
         # set constraints
         Tmin = self.Tmin
-        Tmax = self.Tmax        
+        Tmax = self.Tmax
+        vmax = self.vmax
+        angular_vmax = self.angular_vmax
+                
         ocp.constraints.lbu = np.array([Tmin, Tmin, Tmin, Tmin])
         ocp.constraints.ubu = np.array([Tmax, Tmax, Tmax, Tmax])
         ocp.constraints.idxbu = np.array([0, 1, 2, 3])
     
-        #vmax_angle = 1.6
-        #ocp.constraints.lbx = np.array([-vmax_angle, -vmax_angle, -vmax_angle])
-        #ocp.constraints.ubx = np.array([+vmax_angle, +vmax_angle, +vmax_angle])
-        #ocp.constraints.idxbx = np.array([10, 11, 12])
+        
+        ocp.constraints.lbx = np.array([-vmax, -vmax, -vmax, -angular_vmax, -angular_vmax, -angular_vmax, Tmin, Tmin, Tmin, Tmin])
+        ocp.constraints.ubx = np.array([+vmax, +vmax, +vmax, +angular_vmax, +angular_vmax, +angular_vmax, Tmax, Tmax, Tmax, Tmax])
+        ocp.constraints.idxbx = np.array([7, 8, 9, 10, 11, 12, 13, 14, 15, 16])
               
         
         
@@ -384,23 +400,25 @@ class OffboardControl(Node):
         
         # constrain q to have norm = 1
         #q = SX.sym('q', 4)
-        ##
-        #f_norm = Function('f_norm', [q], [sqrt(q[0]**2 + q[1]**2 + q[2]**2 + q[3]**2)])
+        ###
+        ##f_norm = Function('f_norm', [q], [sqrt(q[0]**2 + q[1]**2 + q[2]**2 + q[3]**2)])
         #f_roll = Function('f_roll', [q], [quaternion_to_euler(q)[0]])
         #f_pitch = Function('f_pitch', [q], [quaternion_to_euler(q)[1]])
-        ##
-        ##
-        ### constrain maximum angle of quadrotor
+        ###
+        ###
+        #### constrain maximum angle of quadrotor
         #max_angle = 30 * np.pi / 180
-        ##
-        #ocp.model.con_h_expr = f_norm(model.x[3:7])
-        #ocp.constraints.lh = np.array([0.99]) # Lower bounds
-        #ocp.constraints.uh = np.array([1.01])  # Upper bounds
+        ###
+        #ocp.model.con_h_expr = vertcat(f_roll(ocp.model.x[3:7]), f_pitch(ocp.model.x[3:7]))
+        #ocp.constraints.lh = np.array([-max_angle, -max_angle]) # Lower bounds
+        #ocp.constraints.uh = np.array([+max_angle, +max_angle]) # Upper bounds
         #
         ### copy for terminal shooting node
-        #ocp.constraints.uh_e = ocp.constraints.uh
-        #ocp.constraints.lh_e = ocp.constraints.lh
-        #ocp.model.con_h_expr_e = ocp.model.con_h_expr
+        #ocp.model.con_h_expr_e = vertcat(f_roll(ocp.model.x[3:7]), f_pitch(ocp.model.x[3:7]))
+        #ocp.constraints.lh_e = np.array([-max_angle, -max_angle]) # Lower bounds
+        #ocp.constraints.uh_e = np.array([+max_angle, +max_angle]) # Upper bounds
+        
+        
         
         
         
@@ -413,6 +431,8 @@ class OffboardControl(Node):
         #ocp.solver_options.nlp_solver_type = 'SQP_RTI'
         #ocp.solver_options.qp_solver = 'FULL_CONDENSING_HPIPM'
         #ocp.solver_options.ext_cost_num_hess = True
+        ocp.solver_options.levenberg_marquardt = 20.0
+        ocp.solver_options.qp_solver_warm_start = 1
         
         # create ACADOS solver
         solver_json = 'acados_ocp_' + model.name + '.json'
@@ -423,9 +443,9 @@ class OffboardControl(Node):
         
         
 
-    def vehicle_local_position_callback(self, vehicle_local_position):
-        """Callback function for vehicle_local_position topic subscriber."""
-        self.vehicle_local_position = vehicle_local_position
+    #def vehicle_local_position_callback(self, vehicle_local_position):
+    #    """Callback function for vehicle_local_position topic subscriber."""
+    #    self.vehicle_local_position = vehicle_local_position
 
     def vehicle_status_callback(self, vehicle_status):
         """Callback function for vehicle_status topic subscriber."""
@@ -436,10 +456,18 @@ class OffboardControl(Node):
         
         self.position = self.NED_to_ENU(vehicle_odometry.position)
         self.velocity = self.NED_to_ENU(vehicle_odometry.velocity)
-        
-        #self.attitude = self.NED_to_ENU(vehicle_odometry.q)
-        self.attitude = self.NED_to_ENU(np.array([1,0,0,0]))
+        self.attitude = self.NED_to_ENU(vehicle_odometry.q)
         self.angular_velocity = self.NED_to_ENU(vehicle_odometry.angular_velocity)
+        
+        #self.position = vehicle_odometry.position
+        #self.velocity = vehicle_odometry.velocity
+        #self.attitude = vehicle_odometry.q
+        #self.angular_velocity = vehicle_odometry.angular_velocity
+        
+        #self.position = np.array([0,0,0])
+        #self.velocity = np.array([0,0,0])
+        #self.attitude = np.array([1,0,0,0])
+        #self.angular_velocity = np.array([0,0,0])
               
     
     
@@ -578,9 +606,9 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         
         msg.control[0] = control[0]  # Motor 1
-        msg.control[1] = control[1]  # Motor 2
-        msg.control[2] = control[2]  # Motor 3
-        msg.control[3] = control[3]  # Motor 4
+        msg.control[1] = control[2]  # Motor 2
+        msg.control[2] = control[3]  # Motor 3
+        msg.control[3] = control[1]  # Motor 4
         
         self.motor_command_publisher_pseudo.publish(msg)
         #self.get_logger().info('Publishing: "%s"' % control)
@@ -616,6 +644,8 @@ class OffboardControl(Node):
         elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
         #if True:
             # if in offboard mode: get setpoint from parameters, get optimal U, publish motor command
+            
+            start = time.time()
             params = self.get_parameters(
             ['position_x', 'position_y', 'position_z'])
             position_setpoint = np.asarray([p.value for p in params])
@@ -645,7 +675,7 @@ class OffboardControl(Node):
             
             q = self.ocp_solver.get(40, 'x')[3:7]
             cost = self.ocp_solver.get_cost()
-            #print(cost)
+            print(cost)
             #print(q_to_eu(self.attitude))
             #self.current_state[13:] = U
             
@@ -656,20 +686,29 @@ class OffboardControl(Node):
             #print(self.parameters[14:])
             #print(self.ocp_solver.get_cost())
             #print(U)
-            #print(quaternion_error(self.attitude_setpoint, self.attitude))
+            #print(q_to_eu(self.attitude))
             #print(rpy)
             
             #print(self.setpoint)
             #print(current_state)
-            print(command)
+            #print(command*self.max_motor_rpm)
             #
             #print(self.attitude)
             #print(attitude_setpoint)
-            #print(command)
-            self.publish_motor_command(command)
-            #self.publish_motor_command_pseudo(command)
+            #print(U/10*self.max_motor_rpm)
             
-        if self.offboard_setpoint_counter < 11:
+            if self.offboard_setpoint_counter < 100:
+                self.publish_motor_command(np.zeros(4))
+                self.publish_motor_command_pseudo(np.zeros(4))
+            else:
+                self.publish_motor_command(U/10)
+                self.publish_motor_command_pseudo(U/10*self.max_motor_rpm)
+            end = time.time()
+            
+            #print("MPC took %f ms \n" % ((end-start)*1000))
+            
+            
+        if self.offboard_setpoint_counter < 100:
             self.offboard_setpoint_counter += 1
         
         
