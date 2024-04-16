@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import rclpy
+from rcl_interfaces.msg import SetParametersResult
 import numpy as np
 import scipy.linalg
 import scipy.interpolate
@@ -188,6 +189,9 @@ class OffboardControl(Node):
         self.position_setpoint = np.array([0,0,0])
         self.velocity_setpoint = np.zeros(3)
         self.attitude_setpoint = np.asarray([np.sqrt(2)/2,0,0,-np.sqrt(2)/2])
+        self.roll_setpoint = 0
+        self.pitch_setpoint = 0
+        self.yaw_setpoint = 0
         self.angular_velocity_setpoint = np.zeros(3)
         self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
         
@@ -263,6 +267,7 @@ class OffboardControl(Node):
         ]
         )
         
+        self.add_on_set_parameters_callback(self.parameter_callback)
         
         
         
@@ -314,9 +319,46 @@ class OffboardControl(Node):
         
         
         self.parameters = np.concatenate((self.params, self.setpoint), axis=None)
+    
+    def set_mpc_target_pos(self):
+             
         
+        parameters = np.concatenate((self.params, self.setpoint), axis=None)
+        
+        
+        for j in range(self.N_horizon):
+            
+            
+            self.ocp_solver.set(j, "p", parameters)
+        
+        self.ocp_solver.set(self.N_horizon, "p", parameters)  
     
-    
+    def parameter_callback(self, params):
+        
+        
+        for param in params:
+            if param.name == "position_x":
+                self.position_setpoint[0] = param.value
+            elif param.name == "position_y":
+                self.position_setpoint[1] = param.value
+            elif param.name == "position_z":
+                self.position_setpoint[2] = param.value
+            elif param.name == "roll":
+                self.roll_setpoint = param.value
+            elif param.name == "pitch":
+                self.pitch_setpoint = param.value
+            elif param.name == "yaw":
+                self.yaw_setpoint = param.value
+         
+               
+        self.attitude_setpoint = euler_to_quaternion(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))        
+        
+        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)      
+        print('New target setpoint: {}'.format(self.setpoint))
+        
+        self.set_mpc_target_pos()
+        
+        return SetParametersResult(successful=True)
 
         
     def setup_mpc(self):
@@ -516,18 +558,7 @@ class OffboardControl(Node):
         return rotated_array
     
     
-    def set_mpc_target_pos(self):
-             
-        
-        parameters = np.concatenate((self.params, self.setpoint), axis=None)
-        
-        
-        for j in range(self.N_horizon):
-            
-            
-            self.ocp_solver.set(j, "p", parameters)
-        
-        self.ocp_solver.set(self.N_horizon, "p", parameters)
+    
         
     def map_logarithmic(self, input_value):
         # Ensure the input is within the expected range
@@ -646,22 +677,22 @@ class OffboardControl(Node):
             # if in offboard mode: get setpoint from parameters, get optimal U, publish motor command
             
             start = time.time()
-            params = self.get_parameters(
-            ['position_x', 'position_y', 'position_z'])
-            position_setpoint = np.asarray([p.value for p in params])
+            #params = self.get_parameters(
+            #['position_x', 'position_y', 'position_z'])
+            #position_setpoint = np.asarray([p.value for p in params])
+            #
+            #params = self.get_parameters(
+            #['roll', 'pitch', 'yaw'])
+            #rpy = np.asarray([p.value for p in params])
+            #attitude_setpoint = euler_to_quaternion(rpy)
             
-            params = self.get_parameters(
-            ['roll', 'pitch', 'yaw'])
-            rpy = np.asarray([p.value for p in params])
-            attitude_setpoint = euler_to_quaternion(rpy)
             
             
-            
-            self.setpoint = np.concatenate((position_setpoint, attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
+            #self.setpoint = np.concatenate((position_setpoint, attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
             current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
             
             
-            self.set_mpc_target_pos()
+            #self.set_mpc_target_pos()
            
             #self.ocp_solver.set(0, "lbx", current_state)
             #self.ocp_solver.set(0, "ubx", current_state) 
