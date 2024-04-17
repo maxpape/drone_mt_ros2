@@ -30,7 +30,10 @@ RUN sudo apt install -y git libgl1-mesa-glx libgl1-mesa-dri
 # Rosdep update
 RUN rosdep update
 
+
+
 # Source the ROS setup file
+RUN echo "export DISPLAY=:0 " >> ~/.bashrc
 RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 RUN echo "source /drone_mt_ros2/ros/install/local_setup.bash" >> ~/.bashrc
 RUN echo "export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/drone_mt_ros2/acados/lib " >> ~/.bashrc

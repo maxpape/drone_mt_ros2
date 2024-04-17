@@ -3,7 +3,7 @@ import numpy as np
 import scipy.linalg
 import scipy.interpolate
 import matplotlib.pyplot as plt
-from casadi import SX, vertcat, horzcat, Function, sqrt, norm_2, dot, cross, mtimes, atan2
+from casadi import SX, vertcat, horzcat, Function, sqrt, norm_2, dot, cross, mtimes, atan2, if_else
 import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
@@ -26,14 +26,14 @@ N_horizon = 40
 Tf = 2
 nx = 17
 nu = 4
-Tmax = 10
-Tmin = 0
-vmax = 4
-angular_vmax = 0.5
+Tmax = 10.0
+Tmin = 0.0
+vmax = 4.0
+angular_vmax = 1.0
 
 
 # parameters for ACAODS MPC
-m = 2.0
+m = 1.5
 g = -9.81
 jxx = 0.029125
 jyy = 0.029125
@@ -46,10 +46,14 @@ d_y0 = 0.0935
 d_y1 = 0.0935
 d_y2 = 0.0935
 d_y3 = 0.0935
+#
 c_tau = 0.000806428
 #c_tau = 0.005
 
-x0 = np.asarray([0,0,0,1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
+hover_thrust = -g*m/4
+
+
+x0 = np.asarray([0,0,0,1, 0, 0, 0, 0, 0, 0, 0, 0, 0, hover_thrust, hover_thrust, hover_thrust, hover_thrust])
 setpoint = np.asarray([0, 0, 0, 1, 0, 0, 0])
 
 #setpoint = np.array([0.93969262, 0.34202014, 0., 0., 0., 0., 0.])
@@ -104,10 +108,13 @@ def plot_drone_euler(N, Tf, simX, U):
 
     # Plot the columns of 'simX' array
     for i in range(simX.shape[1] - 1):
-        if i < 3:
-            axs[U.shape[1] + i].plot(time, q_to_eulers(simX[:, 0:4])[:, i])
+        if i <= 2:
+            axs[U.shape[1] + i].plot(time, simX[:, i])
             axs[U.shape[1] + i].set_ylabel(f"simX column {i+1}")
-        else:
+        elif 2 < i < 6:
+            axs[U.shape[1] + i].plot(time, q_to_eulers(simX[:, 3:7])[:, i-3])
+            axs[U.shape[1] + i].set_ylabel(f"simX column {i+1}")
+        elif 6 <= i:
             axs[U.shape[1] + i].plot(time, simX[:, i + 1])
             axs[U.shape[1] + i].set_ylabel(f"simX column {i+2}")
 
@@ -210,10 +217,14 @@ def quaternion_inverse(q):
     return SX([1, -1, -1, -1]) * q / (norm_2(q) ** 2)
 
 
-def quaternion_error(q, q_ref):
+def quaternion_error(q_ref, q):
+
     q_error = multiply_quaternions(q_ref, quaternion_inverse(q))
+
+    if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
     
-    return q_error[1:]
+
+    return q_error[1:4]
 
 
 
@@ -269,7 +280,7 @@ def setup(x0, N_horizon, Tf, RTI=False):
     #Q_mat[3, 3] = 2
     
 
-    R_mat = np.eye(4)*0.2
+    R_mat = np.eye(4)*1
 
     Q_mat_final = np.eye(6)*2
     #Q_mat_final[0, 0] = 2
@@ -346,7 +357,7 @@ def main(use_RTI=False):
         # set different setpoint for attitude
         if i == 50:
             q_ref = euler_to_quaternion(np.array([0, 0, 0]))
-            y_ref = np.concatenate((np.array([0, 0, 5]), q_ref ), axis=None)
+            y_ref = np.concatenate((np.array([0, 0, 0]), q_ref ), axis=None)
             
             parameters = np.concatenate((params, y_ref), axis=None)
             for j in range(N_horizon):
@@ -363,24 +374,25 @@ def main(use_RTI=False):
         #simU[i, :] = ocp_solver.get(0, 'u')
         
        
-        simU[i, :] = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=False)
+        simU[i, :] = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=True)
         
-        print(ocp_solver.get_cost())
+        #print(ocp_solver.get_cost())
         # print cost for current iteration
         #print(ocp_solver.get_cost())
         
         # check if q stays unit quaternion
-        x = ocp_solver.get(20, "x")
+        #x = ocp_solver.get(20, "x")
         #print(np.linalg.norm(x[0:4]))
-        
-        
+        print(hover_thrust)
+        print(simX[i, 13:])
 
         # simulate system
         simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=simU[i, :])
-
         
-        # manual control input
-        #simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=np.array([0,0,0,0]))
+        #thrust = hover_thrust
+        #
+        ## manual control input
+        #simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=np.array([thrust, thrust, thrust, thrust]))
 
     # plot results
     plot_drone(Nsim, Tf, simX, simU)

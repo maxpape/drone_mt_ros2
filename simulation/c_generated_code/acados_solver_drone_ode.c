@@ -317,7 +317,7 @@ void drone_ode_acados_create_3_create_and_set_functions(drone_ode_solver_capsule
         capsule->__CAPSULE_FNC__.casadi_sparsity_in = & __MODEL_BASE_FNC__ ## _sparsity_in; \
         capsule->__CAPSULE_FNC__.casadi_sparsity_out = & __MODEL_BASE_FNC__ ## _sparsity_out; \
         capsule->__CAPSULE_FNC__.casadi_work = & __MODEL_BASE_FNC__ ## _work; \
-        external_function_param_casadi_create(&capsule->__CAPSULE_FNC__ , 21); \
+        external_function_param_casadi_create(&capsule->__CAPSULE_FNC__ , 27); \
     } while(false)
 
 
@@ -379,7 +379,7 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     const int N = capsule->nlp_solver_plan->N;
     // initialize parameters to nominal value
     double* p = calloc(NP, sizeof(double));
-    p[0] = 2;
+    p[0] = 1;
     p[1] = -9.81;
     p[2] = 0.029125;
     p[3] = 0.029125;
@@ -393,7 +393,8 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     p[11] = 0.0935;
     p[12] = 0.0935;
     p[13] = 0.000806428;
-    p[17] = 1;
+    p[17] = 0.7071067811865476;
+    p[20] = -0.7071067811865476;
 
     for (int i = 0; i <= N; i++) {
         drone_ode_acados_update_params(capsule, i, p, NP);
@@ -488,8 +489,18 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbx0 = lubx0;
     double* ubx0 = lubx0 + NBX0;
     // change only the non-zero elements:
-    lbx0[3] = 1;
-    ubx0[3] = 1;
+    lbx0[3] = 0.7071067811865476;
+    ubx0[3] = 0.7071067811865476;
+    lbx0[6] = -0.7071067811865476;
+    ubx0[6] = -0.7071067811865476;
+    lbx0[13] = 2.4525;
+    ubx0[13] = 2.4525;
+    lbx0[14] = 2.4525;
+    ubx0[14] = 2.4525;
+    lbx0[15] = 2.4525;
+    ubx0[15] = 2.4525;
+    lbx0[16] = 2.4525;
+    ubx0[16] = 2.4525;
 
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "idxbx", idxbx0);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "lbx", lbx0);
@@ -538,10 +549,14 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbu = lubu;
     double* ubu = lubu + NBU;
     
-    ubu[0] = 10;
-    ubu[1] = 10;
-    ubu[2] = 10;
-    ubu[3] = 10;
+    lbu[0] = 1;
+    ubu[0] = 7;
+    lbu[1] = 1;
+    ubu[1] = 7;
+    lbu[2] = 1;
+    ubu[2] = 7;
+    lbu[3] = 1;
+    ubu[3] = 7;
 
     for (int i = 0; i < N; i++)
     {
@@ -576,22 +591,26 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    lbx[0] = -4;
-    ubx[0] = 4;
-    lbx[1] = -4;
-    ubx[1] = 4;
-    lbx[2] = -4;
-    ubx[2] = 4;
+    lbx[0] = -1;
+    ubx[0] = 1;
+    lbx[1] = -1;
+    ubx[1] = 1;
+    lbx[2] = -1;
+    ubx[2] = 1;
     lbx[3] = -0.5;
     ubx[3] = 0.5;
     lbx[4] = -0.5;
     ubx[4] = 0.5;
     lbx[5] = -0.5;
     ubx[5] = 0.5;
-    ubx[6] = 10;
-    ubx[7] = 10;
-    ubx[8] = 10;
-    ubx[9] = 10;
+    lbx[6] = 1;
+    ubx[6] = 7;
+    lbx[7] = 1;
+    ubx[7] = 7;
+    lbx[8] = 1;
+    ubx[8] = 7;
+    lbx[9] = 1;
+    ubx[9] = 7;
 
     for (int i = 1; i < N; i++)
     {
@@ -672,11 +691,11 @@ int fixed_hess = 0;
     double nlp_solver_step_length = 1;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "step_length", &nlp_solver_step_length);
 
-    double levenberg_marquardt = 1.5;
+    double levenberg_marquardt = 20;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 40;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 100;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 
@@ -699,7 +718,7 @@ int fixed_hess = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_iter_max", &qp_solver_iter_max);
 
 
-    int qp_solver_warm_start = 1;
+    int qp_solver_warm_start = 2;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_warm_start", &qp_solver_warm_start);
 
     int print_level = 0;
@@ -736,7 +755,12 @@ void drone_ode_acados_create_7_set_nlp_out(drone_ode_solver_capsule* capsule)
 
     // initialize with x0
     
-    x0[3] = 1;
+    x0[3] = 0.7071067811865476;
+    x0[6] = -0.7071067811865476;
+    x0[13] = 2.4525;
+    x0[14] = 2.4525;
+    x0[15] = 2.4525;
+    x0[16] = 2.4525;
 
 
     double* u0 = xu0 + NX;
@@ -899,7 +923,7 @@ int drone_ode_acados_update_params(drone_ode_solver_capsule* capsule, int stage,
 {
     int solver_status = 0;
 
-    int casadi_np = 21;
+    int casadi_np = 27;
     if (casadi_np != np) {
         printf("acados_update_params: trying to set %i parameters for external functions."
             " External function has %i parameters. Exiting.\n", np, casadi_np);
@@ -953,7 +977,7 @@ int drone_ode_acados_update_params_sparse(drone_ode_solver_capsule * capsule, in
 {
     int solver_status = 0;
 
-    int casadi_np = 21;
+    int casadi_np = 27;
     if (casadi_np < n_update) {
         printf("drone_ode_acados_update_params_sparse: trying to set %d parameters for external functions."
             " External function has %d parameters. Exiting.\n", n_update, casadi_np);

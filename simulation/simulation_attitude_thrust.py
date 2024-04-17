@@ -3,7 +3,7 @@ import numpy as np
 import scipy.linalg
 import scipy.interpolate
 import matplotlib.pyplot as plt
-from casadi import SX, vertcat, horzcat, Function, sqrt, norm_2, dot, cross, mtimes, atan2
+from casadi import SX, vertcat, horzcat, Function, sqrt, norm_2, dot, cross, mtimes, atan2, if_else
 import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
@@ -212,6 +212,9 @@ def quaternion_error(q_ref, q):
 
     q_error = multiply_quaternions(q_ref, quaternion_inverse(q))
 
+    if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
+    
+
     return q_error[1:4]
 
 
@@ -308,6 +311,7 @@ def setup(x0, N_horizon, Tf, RTI=False):
 
 
     ocp.solver_options.qp_solver_warm_start = 1
+    ocp.solver_options.levenberg_marquardt = 1.0
     # create ACADOS solver
     solver_json = "acados_ocp_" + model.name + ".json"
 
@@ -335,8 +339,8 @@ def main(use_RTI=False):
     for i in range(Nsim):
         
         # set different setpoint for attitude
-        if i == 50:
-            q_ref = euler_to_quaternion(np.array([0, 20, 0]))
+        if i == 10:
+            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
             y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
             
             parameters = np.concatenate((params, y_ref), axis=None)
