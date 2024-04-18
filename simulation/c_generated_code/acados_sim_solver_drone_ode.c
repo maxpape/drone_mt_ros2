@@ -169,7 +169,7 @@ int drone_ode_acados_sim_create(drone_ode_sim_solver_capsule * capsule)
     /* initialize parameter values */
     double* p = calloc(np, sizeof(double));
     
-    p[0] = 1;
+    p[0] = 1.5;
     p[1] = -9.81;
     p[2] = 0.029125;
     p[3] = 0.029125;
@@ -182,9 +182,8 @@ int drone_ode_acados_sim_create(drone_ode_sim_solver_capsule * capsule)
     p[10] = 0.0935;
     p[11] = 0.0935;
     p[12] = 0.0935;
-    p[13] = 0.000806428;
-    p[17] = 0.7071067811865476;
-    p[20] = -0.7071067811865476;
+    p[13] = 0.005;
+    p[17] = 1;
 
     drone_ode_acados_sim_update_params(capsule, p, np);
     free(p);

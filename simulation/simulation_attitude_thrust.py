@@ -33,9 +33,9 @@ Tmin = 0
 # parameters for ACAODS MPC
 m = 1.5
 g = -9.81
-jxx = 0.029125
-jyy = 0.029125
-jzz = 0.055225
+jxx = 0.0029125
+jyy = 0.0029125
+jzz = 0.0055225
 d_x0 = 0.107
 d_x1 = 0.107
 d_x2 = 0.107
@@ -44,13 +44,12 @@ d_y0 = 0.0935
 d_y1 = 0.0935
 d_y2 = 0.0935
 d_y3 = 0.0935
-c_tau = 0.000806428
+#c_tau = 0.000806428
 c_tau = 0.005
 
 x0 = np.asarray([1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0])
 setpoint = np.asarray([1, 0, 0, 0, 0, 0, 0])
 
-#setpoint = np.array([0.93969262, 0.34202014, 0., 0., 0., 0., 0.])
 
 
 # fixed parameters
@@ -236,21 +235,7 @@ def error_function(y_ref, x):
     return vertcat(q_err, omega_err)
 
 
-def error_function_old(y_ref, x):
-    """Error function for MPC
-        difference of position, velocity and angular velocity from reference
-        use sub-function for calculating quaternion error
-    """
-    
-    
-    
-    
-    
-    q_err = quaternion_error(y_ref[0:4], x[0:4])
-    q_err = 2*atan2(norm_2(q_err[1:]), q_err[0])
-    omega_err = y_ref[4:7] - x[4:7]
-    
-    return vertcat(q_err, omega_err)
+
 
 def setup(x0, N_horizon, Tf, RTI=False):
     ocp = AcadosOcp()
@@ -298,6 +283,11 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.constraints.lbu = np.array([Tmin, Tmin, Tmin, Tmin])
     ocp.constraints.ubu = np.array([Tmax, Tmax, Tmax, Tmax])
     ocp.constraints.idxbu = np.array([0, 1, 2, 3])
+    
+    max_angle_q = 0.2
+    ocp.constraints.lbx = np.array([-max_angle_q, -max_angle_q])
+    ocp.constraints.ubx = np.array([+max_angle_q, +max_angle_q])
+    ocp.constraints.idxbx = np.array([1,2])
 
     # set initial state
     ocp.constraints.x0 = x0
@@ -310,8 +300,8 @@ def setup(x0, N_horizon, Tf, RTI=False):
 
 
 
-    ocp.solver_options.qp_solver_warm_start = 1
-    ocp.solver_options.levenberg_marquardt = 1.0
+    ocp.solver_options.qp_solver_warm_start = 2
+    ocp.solver_options.levenberg_marquardt = 20.0
     # create ACADOS solver
     solver_json = "acados_ocp_" + model.name + ".json"
 
@@ -341,6 +331,8 @@ def main(use_RTI=False):
         # set different setpoint for attitude
         if i == 10:
             q_ref = euler_to_quaternion(np.array([0, 0, 0]))
+            
+            
             y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
             
             parameters = np.concatenate((params, y_ref), axis=None)
@@ -351,22 +343,12 @@ def main(use_RTI=False):
             
         
        
-        #alternative method for setting x0
-        #ocp_solver.set(0, 'lbx', simX[i, :])
-        #ocp_solver.set(0, 'ubx', simX[i, :])
-        #status = ocp_solver.solve()
-        #simU[i, :] = ocp_solver.get(0, 'u')
+
         
        
-        simU[i, :] = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=False)
+        simU[i, :] = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=True)
         
-        # print cost for current iteration
-        #print(ocp_solver.get_cost())
-        
-        # check if q stays unit quaternion
-        x = ocp_solver.get(20, "x")
-        print(np.linalg.norm(x[0:4]))
-        
+       
         
 
         # simulate system
