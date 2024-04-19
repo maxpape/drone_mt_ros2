@@ -1,5 +1,6 @@
 import rclpy
 import numpy as np
+import pandas as pd
 import scipy.linalg
 import scipy.interpolate
 import matplotlib.pyplot as plt
@@ -359,6 +360,11 @@ def main(use_RTI=False):
         #simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=np.array([5, 0, 5,0]))
 
     # plot results
+    simx_pd = pd.DataFrame(simX)
+    simu_pd = pd.DataFrame(simU)
+    
+    simx_pd.to_csv("simx_att_thr.csv")
+    simu_pd.to_csv('simu_att_thr.csv') 
     plot_drone_euler(Nsim, Tf, simX, simU)
     ocp_solver = None
     integrator = None
