@@ -393,8 +393,8 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     p[11] = 0.0935;
     p[12] = 0.0935;
     p[13] = 0.0806428;
-    p[16] = 5;
-    p[17] = 1;
+    p[17] = 0.7071067811865476;
+    p[20] = -0.7071067811865476;
 
     for (int i = 0; i <= N; i++) {
         drone_ode_acados_update_params(capsule, i, p, NP);
@@ -489,8 +489,10 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbx0 = lubx0;
     double* ubx0 = lubx0 + NBX0;
     // change only the non-zero elements:
-    lbx0[3] = 1;
-    ubx0[3] = 1;
+    lbx0[3] = 0.7071067811865476;
+    ubx0[3] = 0.7071067811865476;
+    lbx0[6] = -0.7071067811865476;
+    ubx0[6] = -0.7071067811865476;
     lbx0[13] = 3.67875;
     ubx0[13] = 3.67875;
     lbx0[14] = 3.67875;
@@ -707,7 +709,8 @@ void drone_ode_acados_create_7_set_nlp_out(drone_ode_solver_capsule* capsule)
 
     // initialize with x0
     
-    x0[3] = 1;
+    x0[3] = 0.7071067811865476;
+    x0[6] = -0.7071067811865476;
     x0[13] = 3.67875;
     x0[14] = 3.67875;
     x0[15] = 3.67875;

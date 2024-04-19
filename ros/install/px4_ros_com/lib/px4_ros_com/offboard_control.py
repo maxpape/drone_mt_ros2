@@ -235,15 +235,15 @@ class OffboardControl(Node):
         #state variables
         self.position = np.zeros(3)
         self.velocity = np.zeros(3)
-        self.attitude = np.asarray([1,0,0,0])
+        self.attitude = np.asarray([np.sqrt(2)/2, 0, 0, -np.sqrt(2)/2])
         self.angular_velocity = np.zeros(3)
         self.thrust = np.ones(4)*self.hover_thrust
         self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
         
         #setpoint variables
-        self.position_setpoint = np.array([0,0,5])
+        self.position_setpoint = np.array([0,0,0])
         self.velocity_setpoint = np.zeros(3)
-        self.attitude_setpoint = np.asarray([1,0,0,0])
+        self.attitude_setpoint = np.asarray([np.sqrt(2)/2, 0, 0, -np.sqrt(2)/2])
         self.roll_setpoint = 0
         self.pitch_setpoint = 0
         self.yaw_setpoint = 0
@@ -384,14 +384,14 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([1,1,1])
-        Q_q= np.diag([1,1,3])*10
+        Q_p= np.diag([1,1,1000])
+        Q_q= np.diag([1,1,3])*0.001
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
         R_U = np.eye(4)
         
-        Q_p_final = np.diag([1,1,1])
-        Q_q_final = np.diag([1,1,3])*10
+        Q_p_final = np.diag([1,1,1000])
+        Q_q_final = np.diag([1,1,3])*0.001
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
@@ -489,17 +489,17 @@ class OffboardControl(Node):
     def vehicle_odometry_callback(self, vehicle_odometry):
         """Callback function for vehicle_odometry topic subscriber."""
         
-        #self.position = self.NED_to_ENU(vehicle_odometry.position)
-        #self.velocity = self.NED_to_ENU(vehicle_odometry.velocity)
-        #self.attitude = self.NED_to_ENU(vehicle_odometry.q)
-        #self.angular_velocity = self.NED_to_ENU(vehicle_odometry.angular_velocity)
+        self.position = self.NED_to_ENU(vehicle_odometry.position)
+        self.velocity = self.NED_to_ENU(vehicle_odometry.velocity)
+        self.attitude = self.NED_to_ENU(vehicle_odometry.q)
+        self.angular_velocity = self.NED_to_ENU(vehicle_odometry.angular_velocity)
         
         
         
-        self.position = np.array([0,0,0])
-        self.attitude = np.array([1,0,0,0])
-        self.velocity = np.array([0,0,0])
-        self.angular_velocity = np.array([0,0,0])
+        #self.position = np.array([0,0,0])
+        #self.attitude = np.array([1,0,0,0])
+        #self.velocity = np.array([0,0,0])
+        #self.angular_velocity = np.array([0,0,0])
         
         self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
               
@@ -586,7 +586,7 @@ class OffboardControl(Node):
             # For a 180-degree rotation around the x-axis, the quaternion is [0, 1, 0, 0]
             # This effectively flips the signs of the y and z components of the vector part
             #q_rot_z = euler_to_quaternion_numpy(np.array([0,0,90]))
-            
+            input_array = input_array/np.linalg.norm(input_array)
             rotated_array = np.zeros(4)
             #q_rot_x = np.array([0,1,0,0])
             #
@@ -601,7 +601,7 @@ class OffboardControl(Node):
             #rotated_array = input_array * np.array([1, 1, -1, -1])
             
             
-            rotated_array = rotated_array/np.linalg.norm(rotated_array)
+            
         else:
             raise ValueError("Input array must be either a 3D vector or a quaternion (shape (3,) or (4,)).")
         
@@ -744,8 +744,8 @@ class OffboardControl(Node):
         if self.offboard_setpoint_counter == 10:
             self.engage_offboard_mode()
             self.arm()
-        #elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-        if True:
+        elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+        #if True:
             # if in offboard mode: get setpoint from parameters, get optimal U, publish motor command
             
             
@@ -772,6 +772,7 @@ class OffboardControl(Node):
                 U = self.ocp_solver.solve_for_x0(x0_bar = current_state, fail_on_nonzero_status=False)
                 command = np.asarray([self.map_thrust(u) for u in U])
             #
+                
                 self.publish_motor_command(np.zeros(4))
                 self.publish_motor_command_pseudo(command)
                 #cost = self.ocp_solver.get_cost()
@@ -779,23 +780,19 @@ class OffboardControl(Node):
                 print('starting control')
                 self.set_mpc_target_pos()    
             else:
-                p = np.array([0,0,0])
-                q = np.array([1,0,0,0])
-                v = np.array([0,0,0])
-                w = np.array([0,0,0])
-                t = np.ones(4)*self.hover_thrust
                 
                 
                 
-                current_state = np.concatenate((p,q,v,w,t), axis=None)
                 
                 
-                U = self.ocp_solver.solve_for_x0(x0_bar = current_state, fail_on_nonzero_status=False)
+                
+                
+                U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state, fail_on_nonzero_status=False)
                 #thrust = self.ocp_solver.get(1, 'x')[13:]
                 #self.thrust = np.ones(4)*self.hover_thrust
                 #self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
-                #command = np.asarray([self.map_thrust(u) for u in U])
-                command = np.asarray(U)
+                command = np.asarray([self.map_thrust(u) for u in U])
+                #command = np.asarray(U)
                 #cost = self.ocp_solver.get_cost()
                 #print("Position: {}".format(self.current_state[0:3]))
                 #print("Velocity: {}".format(self.current_state[7:10]))
