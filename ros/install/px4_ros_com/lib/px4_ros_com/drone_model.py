@@ -36,6 +36,10 @@ def sx_quat_inverse(q):
 
     return SX([1, -1, -1, -1]) * q / (norm_2(q)**2)
 
+#def sx_quat_inverse(q):
+#    q = q / norm_2(q)
+#    return SX([1, -1, -1, -1]) * q
+
 def sx_quat_multiply(q, p):
 
     s1 = q[0]

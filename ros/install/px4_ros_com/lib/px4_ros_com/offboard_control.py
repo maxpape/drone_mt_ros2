@@ -95,7 +95,7 @@ def quaternion_error(q_ref, q):
 
     q_error = multiply_quaternions_casadi(q_ref, quaternion_inverse_casadi(q))
 
-    if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
+    #if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
     
 
     return q_error[1:4]
@@ -384,14 +384,14 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([1,1,1000])
-        Q_q= np.diag([1,1,3])*0.001
+        Q_p= np.diag([1,1,5])
+        Q_q= np.diag([1,1,3])*1000
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
         R_U = np.eye(4)
         
-        Q_p_final = np.diag([1,1,1000])
-        Q_q_final = np.diag([1,1,3])*0.001
+        Q_p_final = np.diag([1,1,5])
+        Q_q_final = np.diag([1,1,3])*1000
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
@@ -744,8 +744,8 @@ class OffboardControl(Node):
         if self.offboard_setpoint_counter == 10:
             self.engage_offboard_mode()
             self.arm()
-        elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-        #if True:
+        #elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+        if True:
             # if in offboard mode: get setpoint from parameters, get optimal U, publish motor command
             
             
@@ -781,13 +781,21 @@ class OffboardControl(Node):
                 self.set_mpc_target_pos()    
             else:
                 
+                p = np.array([0,0,0])
+                q = np.array([1,0,0,0])
+                v = np.array([0,0,0])
+                w = np.array([0,0,0])
+                t = np.ones(4)*self.hover_thrust
+                
+                
+                
+                current_state = np.concatenate((p,q,v,w,t), axis=None)
+            
                 
                 
                 
                 
-                
-                
-                U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state, fail_on_nonzero_status=False)
+                U = self.ocp_solver.solve_for_x0(x0_bar =  current_state, fail_on_nonzero_status=False)
                 #thrust = self.ocp_solver.get(1, 'x')[13:]
                 #self.thrust = np.ones(4)*self.hover_thrust
                 #self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
@@ -805,18 +813,25 @@ class OffboardControl(Node):
                 
                 #print("Real Attitude: {}".format(euler_real))
                 #print("Motors:")
+                
+                #           original motor config
+                
                 print('FL: {}, FR: {}'.format(command[3], command[0]))
                 print('BL: {}, BR: {}\n'.format(command[2], command[1]))
+                
+                #           test motor config
+                #print('FL: {}, FR: {}'.format(command[1], command[2]))
+                #print('BL: {}, BR: {}\n'.format(command[0], command[3]))
                 #print('Real norm: {}'.format(np.linalg.norm(q_real)))
                 #print("Simu Attitude: {}\n".format(euler_sim))
                 #print('Simu norm: {}\n'.format(np.linalg.norm(q_sim)))
                 #print(quaternion_to_euler_numpy(self.current_state[3:7])+ "\n")
-                #self.publish_motor_command(command)
-                #self.publish_motor_command_pseudo(command)
-                print('Position: {}'.format(self.position))
-                print('Velocity: {}'.format(self.velocity))
-                print('Attitude: {}'.format(self.attitude))
-                print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
+                self.publish_motor_command(command)
+                self.publish_motor_command_pseudo(command)
+                #print('Position: {}'.format(self.position))
+                #print('Velocity: {}'.format(self.velocity))
+                #print('Attitude: {}'.format(self.attitude))
+                #print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
             
             end = time.time()
             

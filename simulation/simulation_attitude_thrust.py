@@ -23,8 +23,8 @@ from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 from drone_model_attitude_thrust import export_drone_ode_model
 
 
-N_horizon = 40
-Tf = 2
+N_horizon = 100
+Tf = 5
 nx = 11
 nu = 4
 Tmax = 10
@@ -318,7 +318,7 @@ def main(use_RTI=False):
 
     ocp_solver, integrator = setup(x0, N_horizon, Tf, use_RTI)
 
-    Nsim = 200
+    Nsim = 1000
     simX = np.ndarray((Nsim + 1, nx))
     simU = np.ndarray((Nsim + 1, nu))
 
@@ -330,7 +330,101 @@ def main(use_RTI=False):
     for i in range(Nsim):
         
         # set different setpoint for attitude
-        if i == 10:
+        if i == 100:
+            q_ref = euler_to_quaternion(np.array([10, 0, 0]))
+            
+            
+            y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
+            
+            parameters = np.concatenate((params, y_ref), axis=None)
+            for j in range(N_horizon):
+
+                ocp_solver.set(j, "p", parameters)
+            ocp_solver.set(N_horizon, "p", parameters)
+            
+        if i == 200:
+            q_ref = euler_to_quaternion(np.array([-10, 0, 0]))
+            
+            
+            y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
+            
+            parameters = np.concatenate((params, y_ref), axis=None)
+            for j in range(N_horizon):
+
+                ocp_solver.set(j, "p", parameters)
+            ocp_solver.set(N_horizon, "p", parameters)
+            
+        if i == 300:
+            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
+            
+            
+            y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
+            
+            parameters = np.concatenate((params, y_ref), axis=None)
+            for j in range(N_horizon):
+
+                ocp_solver.set(j, "p", parameters)
+            ocp_solver.set(N_horizon, "p", parameters)
+            
+        if i == 400:
+            q_ref = euler_to_quaternion(np.array([0, 10, 0]))
+            
+            
+            y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
+            
+            parameters = np.concatenate((params, y_ref), axis=None)
+            for j in range(N_horizon):
+
+                ocp_solver.set(j, "p", parameters)
+            ocp_solver.set(N_horizon, "p", parameters)
+            
+        if i == 500:
+            q_ref = euler_to_quaternion(np.array([0, -10, 0]))
+            
+            
+            y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
+            
+            parameters = np.concatenate((params, y_ref), axis=None)
+            for j in range(N_horizon):
+
+                ocp_solver.set(j, "p", parameters)
+            ocp_solver.set(N_horizon, "p", parameters)
+            
+        if i == 600:
+            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
+            
+            
+            y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
+            
+            parameters = np.concatenate((params, y_ref), axis=None)
+            for j in range(N_horizon):
+
+                ocp_solver.set(j, "p", parameters)
+            ocp_solver.set(N_horizon, "p", parameters)
+            
+        if i == 700:
+            q_ref = euler_to_quaternion(np.array([0, 0, 10]))
+            
+            
+            y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
+            
+            parameters = np.concatenate((params, y_ref), axis=None)
+            for j in range(N_horizon):
+
+                ocp_solver.set(j, "p", parameters)
+            ocp_solver.set(N_horizon, "p", parameters)
+        if i == 800:
+            q_ref = euler_to_quaternion(np.array([0, 0, -10]))
+            
+            
+            y_ref = np.concatenate((q_ref, np.array([0, 0, 0])), axis=None)
+            
+            parameters = np.concatenate((params, y_ref), axis=None)
+            for j in range(N_horizon):
+
+                ocp_solver.set(j, "p", parameters)
+            ocp_solver.set(N_horizon, "p", parameters)
+        if i == 900:
             q_ref = euler_to_quaternion(np.array([0, 0, 0]))
             
             
@@ -359,12 +453,23 @@ def main(use_RTI=False):
         # manual control input
         #simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=np.array([5, 0, 5,0]))
 
-    # plot results
-    simx_pd = pd.DataFrame(simX)
-    simu_pd = pd.DataFrame(simU)
+    # plot results    
+    simx = np.zeros((Nsim+1, nx+1))
+    simx[:, 0] = np.linspace(0, Tf/N_horizon*Nsim, Nsim+1)
+    simx[:,1:nx+1] = simX
     
-    simx_pd.to_csv("simx_att_thr.csv")
-    simu_pd.to_csv('simu_att_thr.csv') 
+    simu = np.zeros((Nsim+1, nu+1))
+    simu[:, 0] = np.linspace(0, Tf/N_horizon*Nsim, Nsim+1)
+    simu[:,1:nu+1] = simU
+    
+    
+    simx_pd = pd.DataFrame(simx)
+    simu_pd = pd.DataFrame(simu)
+    
+    columns_x = ['t', 'q_w', 'q_x', 'q_y', 'q_z', 'w_x', 'w_y', 'w_z', 'motor_FR', 'motor_BR', 'motor_BL', 'motor_FL']
+    columns_u = ['t', 'motor_FR_set', 'motor_BR_set', 'motor_BL_set', 'motor_FL_set']
+    simx_pd.to_csv("simx_att_thrust.csv", header=columns_x)
+    simu_pd.to_csv('simu_att_thrust.csv', header=columns_u) 
     plot_drone_euler(Nsim, Tf, simX, simU)
     ocp_solver = None
     integrator = None
