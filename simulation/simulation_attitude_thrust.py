@@ -22,7 +22,7 @@ from rcl_interfaces.msg import ParameterDescriptor, ParameterType, FloatingPoint
 from acados_template import AcadosOcp, AcadosOcpSolver, AcadosSimSolver
 from drone_model_attitude_thrust import export_drone_ode_model
 
-
+# parameters for OCP solver
 N_horizon = 100
 Tf = 5
 nx = 11
@@ -81,6 +81,8 @@ def q_to_eulers(array):
 
 
 def plot_drone_euler(N, Tf, simX, U):
+    # plot with quaternion converted to euler angles
+    
     # Assuming 'input', 'x', and 'time' are your numpy arrays
     # time = np.linspace(0, N*Tf, N+1)
     time = np.linspace(0, N * 0.05, num=N + 1)
@@ -163,7 +165,7 @@ def euler_to_quaternion(rpy):
     rpy : np.ndarray roll, pitch, yaw
 
     Returns:
-    list
+    np.ndarray
         Quaternion [w, x, y, z] representing the rotation.
     """
     roll, pitch, yaw = rpy
@@ -208,11 +210,13 @@ def quaternion_inverse(q):
     return SX([1, -1, -1, -1]) * q / (norm_2(q) ** 2)
 
 
+
+
 def quaternion_error(q_ref, q):
 
     q_error = multiply_quaternions(q_ref, quaternion_inverse(q))
 
-    if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
+    #if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
     
 
     return q_error[1:4]
@@ -264,7 +268,7 @@ def setup(x0, N_horizon, Tf, RTI=False):
     Q_mat_final[0, 0] = 2
     Q_mat_final[1, 1] = 2
     Q_mat_final[2, 2] = 2
-    #Q_mat_final[3, 3] = 2
+    
 
     # set cost module
     x = ocp.model.x[0:7]
@@ -440,20 +444,18 @@ def main(use_RTI=False):
        
 
         
-       
+        # let acados solve for optimal u with given x0
         simU[i, :] = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=True)
         
        
         
 
-        # simulate system
+        # simulate system with optimal control input
         simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=simU[i, :])
 
         
-        # manual control input
-        #simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=np.array([5, 0, 5,0]))
 
-    # plot results    
+    # plot results and export to csv for plotjuggler  
     simx = np.zeros((Nsim+1, nx+1))
     simx[:, 0] = np.linspace(0, Tf/N_horizon*Nsim, Nsim+1)
     simx[:,1:nx+1] = simX
@@ -461,8 +463,7 @@ def main(use_RTI=False):
     simu = np.zeros((Nsim+1, nu+1))
     simu[:, 0] = np.linspace(0, Tf/N_horizon*Nsim, Nsim+1)
     simu[:,1:nu+1] = simU
-    
-    
+        
     simx_pd = pd.DataFrame(simx)
     simu_pd = pd.DataFrame(simu)
     
@@ -477,5 +478,4 @@ def main(use_RTI=False):
 
 
 if __name__ == "__main__":
-    # main(use_RTI=False)
     main(use_RTI=True)

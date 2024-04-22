@@ -62,13 +62,6 @@ def quat_rotation(v, q):
     return p_rotated[1:4]
 
 
-def quat_rotation_old(q, v):
-    rot_mat = sc.Rotation.from_quat(q).as_matrix()
-
-    rotated_vec = mtimes(rot_mat, v)
-
-    return rotated_vec
-
 
 # Function to compute the quaternion product matrix for quaternion multiplication
 def quaternion_product_matrix(quat):
@@ -131,8 +124,8 @@ def export_drone_ode_model() -> AcadosModel:
     )  # Inertia matrix
     
     P = vertcat(
-        horzcat(-d_x0, -d_x1, d_x2, d_x3),
-        horzcat(d_y0, -d_y1, -d_y2, d_y3),
+        horzcat(-d_x0, -d_x1, +d_x2, +d_x3),
+        horzcat(-d_y0, +d_y1, +d_y2, -d_y3),
         horzcat(-c_tau, c_tau, -c_tau, c_tau),
     )
 

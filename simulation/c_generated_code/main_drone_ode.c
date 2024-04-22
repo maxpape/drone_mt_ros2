@@ -73,20 +73,20 @@ int main()
     // initial condition
     double lbx0[NBX0];
     double ubx0[NBX0];
-    lbx0[0] = 1;
-    ubx0[0] = 1;
+    lbx0[0] = 0;
+    ubx0[0] = 0;
     lbx0[1] = 0;
     ubx0[1] = 0;
     lbx0[2] = 0;
     ubx0[2] = 0;
-    lbx0[3] = 0;
-    ubx0[3] = 0;
+    lbx0[3] = 0.7071067811865476;
+    ubx0[3] = 0.7071067811865476;
     lbx0[4] = 0;
     ubx0[4] = 0;
     lbx0[5] = 0;
     ubx0[5] = 0;
-    lbx0[6] = 0;
-    ubx0[6] = 0;
+    lbx0[6] = -0.7071067811865476;
+    ubx0[6] = -0.7071067811865476;
     lbx0[7] = 0;
     ubx0[7] = 0;
     lbx0[8] = 0;
@@ -95,6 +95,18 @@ int main()
     ubx0[9] = 0;
     lbx0[10] = 0;
     ubx0[10] = 0;
+    lbx0[11] = 0;
+    ubx0[11] = 0;
+    lbx0[12] = 0;
+    ubx0[12] = 0;
+    lbx0[13] = 3.67875;
+    ubx0[13] = 3.67875;
+    lbx0[14] = 3.67875;
+    ubx0[14] = 3.67875;
+    lbx0[15] = 3.67875;
+    ubx0[15] = 3.67875;
+    lbx0[16] = 3.67875;
+    ubx0[16] = 3.67875;
 
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "lbx", lbx0);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "ubx", ubx0);
@@ -112,6 +124,12 @@ int main()
     x_init[8] = 0.0;
     x_init[9] = 0.0;
     x_init[10] = 0.0;
+    x_init[11] = 0.0;
+    x_init[12] = 0.0;
+    x_init[13] = 0.0;
+    x_init[14] = 0.0;
+    x_init[15] = 0.0;
+    x_init[16] = 0.0;
 
     // initial value for control input
     double u0[NU];

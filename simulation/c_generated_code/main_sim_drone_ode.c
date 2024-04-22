@@ -74,19 +74,31 @@ int main()
     x_current[8] = 0.0;
     x_current[9] = 0.0;
     x_current[10] = 0.0;
+    x_current[11] = 0.0;
+    x_current[12] = 0.0;
+    x_current[13] = 0.0;
+    x_current[14] = 0.0;
+    x_current[15] = 0.0;
+    x_current[16] = 0.0;
 
   
-    x_current[0] = 1;
+    x_current[0] = 0;
     x_current[1] = 0;
     x_current[2] = 0;
-    x_current[3] = 0;
+    x_current[3] = 0.7071067811865476;
     x_current[4] = 0;
     x_current[5] = 0;
-    x_current[6] = 0;
+    x_current[6] = -0.7071067811865476;
     x_current[7] = 0;
     x_current[8] = 0;
     x_current[9] = 0;
     x_current[10] = 0;
+    x_current[11] = 0;
+    x_current[12] = 0;
+    x_current[13] = 3.67875;
+    x_current[14] = 3.67875;
+    x_current[15] = 3.67875;
+    x_current[16] = 3.67875;
     
   
 
@@ -112,14 +124,20 @@ int main()
     p[10] = 0.0935;
     p[11] = 0.0935;
     p[12] = 0.0935;
-    p[13] = 0.005;
-    p[14] = 1;
+    p[13] = 0.0806428;
+    p[14] = 0;
     p[15] = 0;
     p[16] = 0;
-    p[17] = 0;
+    p[17] = 0.7071067811865476;
     p[18] = 0;
     p[19] = 0;
-    p[20] = 0;
+    p[20] = -0.7071067811865476;
+    p[21] = 0;
+    p[22] = 0;
+    p[23] = 0;
+    p[24] = 0;
+    p[25] = 0;
+    p[26] = 0;
 
     drone_ode_acados_sim_update_params(capsule, p, NP);
   

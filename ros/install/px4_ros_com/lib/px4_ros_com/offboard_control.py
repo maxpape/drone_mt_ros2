@@ -385,13 +385,13 @@ class OffboardControl(Node):
         
         # define weighing matrices
         Q_p= np.diag([1,1,5])
-        Q_q= np.diag([1,1,3])*1000
+        Q_q= np.diag([1,1,3])*0.001
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
         R_U = np.eye(4)
         
         Q_p_final = np.diag([1,1,5])
-        Q_q_final = np.diag([1,1,3])*1000
+        Q_q_final = np.diag([1,1,3])*0.001
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
@@ -489,8 +489,12 @@ class OffboardControl(Node):
     def vehicle_odometry_callback(self, vehicle_odometry):
         """Callback function for vehicle_odometry topic subscriber."""
         
+        
         self.position = self.NED_to_ENU(vehicle_odometry.position)
+        
+        
         self.velocity = self.NED_to_ENU(vehicle_odometry.velocity)
+        
         self.attitude = self.NED_to_ENU(vehicle_odometry.q)
         self.angular_velocity = self.NED_to_ENU(vehicle_odometry.angular_velocity)
         
@@ -579,6 +583,7 @@ class OffboardControl(Node):
             rot_x = R.from_euler('x', 180, degrees=True)
             #rot_z = R.from_euler('z', 90, degrees=True)
             rotated_array = rot_x.apply(input_array)
+            
             #rotated_array = rot_z.apply(rotated_array)
         elif input_array.shape == (4,):
             
@@ -744,8 +749,8 @@ class OffboardControl(Node):
         if self.offboard_setpoint_counter == 10:
             self.engage_offboard_mode()
             self.arm()
-        #elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-        if True:
+        elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+        #if True:
             # if in offboard mode: get setpoint from parameters, get optimal U, publish motor command
             
             
@@ -795,7 +800,7 @@ class OffboardControl(Node):
                 
                 
                 
-                U = self.ocp_solver.solve_for_x0(x0_bar =  current_state, fail_on_nonzero_status=False)
+                U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state, fail_on_nonzero_status=False)
                 #thrust = self.ocp_solver.get(1, 'x')[13:]
                 #self.thrust = np.ones(4)*self.hover_thrust
                 #self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
