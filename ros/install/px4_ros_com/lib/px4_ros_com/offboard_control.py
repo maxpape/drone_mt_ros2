@@ -117,7 +117,7 @@ def error_function(x, y_ref):
     
     
     p_err = x[0:3] - p_ref
-    q_err = quaternion_error(x[3:7], q_ref)
+    q_err = quaternion_error(x[3:7], q_ref)[2]
     
     
     return vertcat(p_err, q_err)
@@ -180,11 +180,11 @@ class OffboardControl(Node):
         self.ocp_solver = None
         
         
-        self.N_horizon = 100
-        self.Tf = 5
+        self.N_horizon = 40
+        self.Tf = 2
         self.nx = 17
         self.nu = 4
-        self.Tmax = 10
+        self.Tmax = 8
         self.Tmin = 1
         self.vmax = 2
         self.angular_vmax = 1
@@ -195,9 +195,9 @@ class OffboardControl(Node):
         self.m = 1.5
         
         self.g = -9.81
-        self.jxx = 0.0029125
-        self.jyy = 0.0029125
-        self.jzz = 0.0055225
+        self.jxx = 0.029125
+        self.jyy = 0.029125
+        self.jzz = 0.055225
        
         
         self.d_x0 = 0.107
@@ -208,8 +208,8 @@ class OffboardControl(Node):
         self.d_y1 = 0.0935
         self.d_y2 = 0.0935
         self.d_y3 = 0.0935
-        #self.c_tau = 0.000806428
-        self.c_tau = 0.0806428
+        self.c_tau = 0.000806428
+        #self.c_tau = 0.0806428
         self.hover_thrust = -self.g*self.m/4
         
         self.params = np.asarray([self.m,
@@ -255,7 +255,7 @@ class OffboardControl(Node):
         self.parameters = np.concatenate((self.params, self.setpoint), axis=None)
 
         # Create a timer to publish control commands
-        self.timer = self.create_timer(0.05, self.timer_callback)
+        self.timer = self.create_timer(self.Tf/self.N_horizon, self.timer_callback)
         
         
         
@@ -384,14 +384,14 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([1,1,5])
-        Q_q= np.diag([1,1,3])*0.001
+        Q_p= np.diag([10,10,100])
+        Q_q= np.eye(1)*100
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
         R_U = np.eye(4)
         
-        Q_p_final = np.diag([1,1,5])
-        Q_q_final = np.diag([1,1,3])*0.001
+        Q_p_final = np.diag([10,10,100])
+        Q_q_final = np.eye(1)*100
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
@@ -424,13 +424,13 @@ class OffboardControl(Node):
         ocp.constraints.idxbu = np.array([0, 1, 2, 3])
     
         
-        #ocp.constraints.lbx = np.array([-vmax, -vmax, -vmax, -angular_vmax, -angular_vmax, -angular_vmax])
-        #ocp.constraints.ubx = np.array([+vmax, +vmax, +vmax, +angular_vmax, +angular_vmax, +angular_vmax])
-        #ocp.constraints.idxbx = np.array([7, 8, 9, 10, 11, 12])
+        ocp.constraints.lbx = np.array([-vmax, -vmax, -vmax, -angular_vmax, -angular_vmax, -angular_vmax])
+        ocp.constraints.ubx = np.array([+vmax, +vmax, +vmax, +angular_vmax, +angular_vmax, +angular_vmax])
+        ocp.constraints.idxbx = np.array([7, 8, 9, 10, 11, 12])
               
-        #ocp.constraints.lbx = np.array([-self.max_angle_q, -self.max_angle_q])
-        #ocp.constraints.ubx = np.array([+self.max_angle_q, +self.max_angle_q])
-        #ocp.constraints.idxbx = np.array([4,5])
+        ocp.constraints.lbx = np.array([-self.max_angle_q, -self.max_angle_q])
+        ocp.constraints.ubx = np.array([+self.max_angle_q, +self.max_angle_q])
+        ocp.constraints.idxbx = np.array([4,5])
         
         
         # set initial state
@@ -467,7 +467,7 @@ class OffboardControl(Node):
         ocp.solver_options.tf = self.Tf
         
         # set solver options
-        ocp.solver_options.levenberg_marquardt = 20.0
+        ocp.solver_options.levenberg_marquardt = 15.0
         ocp.solver_options.qp_solver_warm_start = 2
         
         
@@ -536,8 +536,8 @@ class OffboardControl(Node):
         #thrust[2] = self.hover_thrust
         #thrust[3] = self.hover_thrust
         
-        #self.thrust = thrust
-        #self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
+        self.thrust = thrust
+        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
         
         
     
@@ -821,8 +821,8 @@ class OffboardControl(Node):
                 
                 #           original motor config
                 
-                print('FL: {}, FR: {}'.format(command[3], command[0]))
-                print('BL: {}, BR: {}\n'.format(command[2], command[1]))
+                #print('FL: {}, FR: {}'.format(command[3], command[0]))
+                #print('BL: {}, BR: {}\n'.format(command[2], command[1]))
                 
                 #           test motor config
                 #print('FL: {}, FR: {}'.format(command[1], command[2]))
@@ -833,10 +833,10 @@ class OffboardControl(Node):
                 #print(quaternion_to_euler_numpy(self.current_state[3:7])+ "\n")
                 self.publish_motor_command(command)
                 self.publish_motor_command_pseudo(command)
-                #print('Position: {}'.format(self.position))
+                print('Position: {}'.format(self.position))
                 #print('Velocity: {}'.format(self.velocity))
                 #print('Attitude: {}'.format(self.attitude))
-                #print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
+                print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
             
             end = time.time()
             

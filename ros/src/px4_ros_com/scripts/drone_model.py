@@ -177,7 +177,7 @@ def export_drone_ode_model() -> AcadosModel:
         quat_derivative(q_WB, omega_B),
         quat_rotation(vertcat(0, 0, sum1(thrust)), q_WB) / m + vertcat(0, 0, g),
         inv(J) @ ((P @ thrust - cross(omega_B, J @ omega_B))),
-        (thrust_set - thrust) * 20,
+        (thrust_set - thrust) * 25,
     )
 
     f_impl = xdot - f_expl
