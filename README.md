@@ -42,8 +42,18 @@ code .
 ```
 ./first_run.sh
 ```
+7. Add following lines below line 43:
+```
+  - topic: /fmu/out/actuator_outputs
+    type: px4_msgs::msg::ActuatorOutputs
+```
+to file:
+```
+/drone_mt_ros2/PX4-Autopilot/src/modules/uxrce_dds_client/dds_topics.yaml
+```
 
-7. Close and re-open integrated Terminal
+
+8. Close and re-open integrated Terminal
 
 ### Code execution:
 
