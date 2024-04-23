@@ -1,6 +1,6 @@
 #!/bin/bash
 
-
+git submodule update --recursive --init
 sudo apt update -y
 sudo apt install -y python3-pip wget nano
 sudo wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
@@ -11,7 +11,6 @@ pip install --user -U empy==3.3.4 pyros-genmsg setuptools
 pip install symforce
 pip install casadi
 pip install spatial-casadi
-git clone https://github.com/PX4/PX4-Autopilot.git --recursive
 bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
 cd PX4-Autopilot/
 DONT_RUN = 1 make px4_sitl gz_x500
@@ -30,7 +29,6 @@ sudo ldconfig /usr/local/lib/
 cd /drone_mt_ros2/
 git clone https://github.com/acados/acados.git
 cd acados
-git submodule update --recursive --init
 mkdir build
 cd build
 cmake -DACADOS_WITH_QPOASES=ON ..
