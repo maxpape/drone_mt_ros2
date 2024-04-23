@@ -110,14 +110,20 @@ typedef struct drone_ode_solver_capsule
 
 
 
+
+
     external_function_param_casadi ext_cost_0_fun;
     external_function_param_casadi ext_cost_0_fun_jac;
     external_function_param_casadi ext_cost_0_fun_jac_hess;
 
 
+
+
     external_function_param_casadi ext_cost_e_fun;
     external_function_param_casadi ext_cost_e_fun_jac;
     external_function_param_casadi ext_cost_e_fun_jac_hess;
+
+
 
     // constraints
 

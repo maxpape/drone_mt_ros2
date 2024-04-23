@@ -24,7 +24,7 @@ RUN sudo apt update && sudo apt upgrade -y
 
 
 # Install Git
-RUN sudo apt install -y git libgl1-mesa-glx libgl1-mesa-dri 
+RUN sudo apt install -y git libgl1-mesa-glx libgl1-mesa-dri rsync
 
 
 # Rosdep update

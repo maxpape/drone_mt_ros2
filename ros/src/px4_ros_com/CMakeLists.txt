@@ -123,7 +123,6 @@ ament_python_install_package(${PROJECT_NAME})
 install(PROGRAMS
   src/examples/offboard_py/offboard_control.py
   scripts/drone_model.py
-  scripts/drone_model_attitude_thrust.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

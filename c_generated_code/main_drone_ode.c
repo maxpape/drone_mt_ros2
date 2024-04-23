@@ -43,6 +43,7 @@
 #include "blasfeo/include/blasfeo_d_aux_ext_dep.h"
 
 #define NX     DRONE_ODE_NX
+#define NP     DRONE_ODE_NP
 #define NU     DRONE_ODE_NU
 #define NBX0   DRONE_ODE_NBX0
 
