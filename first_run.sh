@@ -1,6 +1,6 @@
 #!/bin/bash
 
-git submodule update --recursive --init
+git submodule update --init --recursive
 sudo apt update -y
 sudo apt install -y python3-pip wget nano
 sudo wget https://packages.osrfoundation.org/gazebo.gpg -O /usr/share/keyrings/pkgs-osrf-archive-keyring.gpg
@@ -16,7 +16,6 @@ cd PX4-Autopilot/
 DONT_RUN = 1 make px4_sitl gz_x500
 
 cd /drone_mt_ros2
-git clone https://github.com/eProsima/Micro-XRCE-DDS-Agent.git
 cd Micro-XRCE-DDS-Agent
 mkdir build
 cd build
@@ -27,7 +26,6 @@ sudo ldconfig /usr/local/lib/
 
 
 cd /drone_mt_ros2/
-git clone https://github.com/acados/acados.git
 cd acados
 mkdir build
 cd build
