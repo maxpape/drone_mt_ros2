@@ -29,7 +29,7 @@ def euler_to_quaternion_numpy(rpy):
     rpy : np.ndarray roll, pitch, yaw
 
     Returns:
-    list
+    np.ndarray
         Quaternion [w, x, y, z] representing the rotation.
     """
     roll, pitch, yaw = rpy
@@ -43,6 +43,14 @@ def euler_to_quaternion_numpy(rpy):
     return np.array([q[3], q[0], q[1], q[2]] ) / np.linalg.norm(q)
 
 def quaternion_to_euler_numpy(q):
+    """Convert quaternion to euler angles
+
+    Args:
+        q (np.ndarray): Input quaternion 
+
+    Returns:
+        no.ndarray: Array containg orientation in euler angles [roll, pitch, yaw]
+    """
     quat = np.zeros(4)
     quat[0], quat[1], quat[2], quat[3] = q[1], q[2], q[3], q[0]
 
@@ -66,6 +74,15 @@ def quaternion_to_euler_casadi(q):
 
 
 def multiply_quaternions_numpy(q1, q2):
+    """Multiply two quaternioins given as numpy arrays
+
+    Args:
+        q1 (np.ndarray): input quaternion q1
+        q2 (np.ndarray): input quaternion q2
+
+    Returns:
+        np.ndarray: output quaternion
+    """
     w1, x1, y1, z1 = q1
     w2, x2, y2, z2 = q2
     
@@ -78,7 +95,15 @@ def multiply_quaternions_numpy(q1, q2):
 
 
 def multiply_quaternions_casadi(q, p):
+    """Multiply two quaternions given as casadi expressions
 
+    Args:
+        q (casadi SX): quaternion 1
+        p (casadi SX): quaternion 2
+
+    Returns:
+        casadi SX: resulting quaternion
+    """
     s1 = q[0]
     v1 = q[1:4]
     s2 = p[0]
@@ -88,29 +113,47 @@ def multiply_quaternions_casadi(q, p):
     return vertcat(s, v)
 
 def quaternion_inverse_casadi(q):
+    """Invert a quaternion given as a casadi expression
+
+    Args:
+        q (casadi SX): input quaternion
+
+    Returns:
+        casadi SX: inverted quaternion
+    """
 
     return SX([1, -1, -1, -1]) * q / (norm_2(q)**2)
 
 def quaternion_error(q_ref, q):
+    """Calculate the quaternion error between a reference quaternion q_ref and an origin quaternion q
 
+    Args:
+        q_ref (casadi SX): reference quaternion
+        q (casadi SX): origin quaternion
+
+    Returns:
+        casadi SX: elements x, y, and z from error quaternion (w neglected, since norm(unit quaternion)=1; not suitable for error calculation)
+    """
     q_error = multiply_quaternions_casadi(q_ref, quaternion_inverse_casadi(q))
 
-    #if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
+    if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
     
 
     return q_error[1:4]
 
-def quat_error_euler(q_ref, q):
-    ref = quaternion_to_euler_casadi(q_ref)
-    actual = quaternion_to_euler_casadi(q)
-    
-    return vertcat(actual[0]-ref[0], actual[1]-ref[1], actual[2]-ref[2])
     
 
 def error_function(x, y_ref):
     """Error function for MPC
-        difference of position, velocity and angular velocity from reference
+        difference of position and attitude from reference
         use sub-function for calculating quaternion error
+
+    Args:
+        x (casadi SX): current state of position and attitude
+        y_ref (casadi SX): desired reference
+
+    Returns:
+        casadi SX: vector containing position and attiude error (attitude error only regarding yaw)
     """
     p_ref = y_ref[0:3]
     q_ref = y_ref[3:7]
@@ -122,24 +165,10 @@ def error_function(x, y_ref):
     
     return vertcat(p_err, q_err)
 
-def error_function_old(x, y_ref):
-    """Error function for MPC
-        difference of position, velocity and angular velocity from reference
-        use sub-function for calculating quaternion error
-    """
-    p_ref = y_ref[0:3]
-    q_ref = y_ref[3:7]
-    
-    
-    p_err = x[0:3] - p_ref
-    q_err = quaternion_error(x[3:7], q_ref)
-    q_err = 2*atan2(norm_2(q_err[1:]), q_err[0])
-    
-    return vertcat(p_err, q_err)
 
 
 class OffboardControl(Node):
-    """Node for controlling a vehicle in offboard mode."""
+    """Node for controlling a vehicle in offboard mode with MPC."""
 
     def __init__(self) -> None:
         super().__init__('offboard_control_nmpc')
@@ -175,11 +204,10 @@ class OffboardControl(Node):
 
         # Initialize variables
         self.offboard_setpoint_counter = 0
-        self.vehicle_local_position = VehicleLocalPosition()
         self.vehicle_status = VehicleStatus()
         self.ocp_solver = None
         
-        
+        # variables for ACADOS MPC
         self.N_horizon = 40
         self.Tf = 2
         self.nx = 17
@@ -191,7 +219,7 @@ class OffboardControl(Node):
         self.max_angle_q = 0.2
         self.max_motor_rpm = 1100
         
-        # parameters for ACAODS MPC
+        # parameters for system model
         self.m = 1.5
         
         self.g = -9.81
@@ -209,7 +237,6 @@ class OffboardControl(Node):
         self.d_y2 = 0.0935
         self.d_y3 = 0.0935
         self.c_tau = 0.000806428
-        #self.c_tau = 0.0806428
         self.hover_thrust = -self.g*self.m/4
         
         self.params = np.asarray([self.m,
@@ -238,7 +265,8 @@ class OffboardControl(Node):
         self.attitude = np.asarray([np.sqrt(2)/2, 0, 0, -np.sqrt(2)/2])
         self.angular_velocity = np.zeros(3)
         self.thrust = np.ones(4)*self.hover_thrust
-        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
+        self.update_current_state()
+        
         
         #setpoint variables
         self.position_setpoint = np.array([0,0,0])
@@ -248,7 +276,8 @@ class OffboardControl(Node):
         self.pitch_setpoint = 0
         self.yaw_setpoint = 0
         self.angular_velocity_setpoint = np.zeros(3)
-        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
+        self.update_setpoint()
+        #self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
         
         
         
@@ -327,10 +356,44 @@ class OffboardControl(Node):
         
         self.add_on_set_parameters_callback(self.parameter_callback)
         
+    def update_current_state(self):
+        """aggregates individual states to combined state of system
+        """
         
+        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None) 
         
+    def update_setpoint(self, fields="", p=np.array([0,0,0]), q=np.array([1,0,0,0]), v=np.array([0,0,0]), w=np.array([0,0,0]), roll=0.0, pitch=0.0, yaw=0.0):
+        """Updates one ore more reference setpoint values
+
+        Args:
+            fields (str, optional): what references shall be updated. Defaults to "".
+            p (np.ndarray, optional): only set if specified in "fields". reference for position. Defaults to np.array([0,0,0]).
+            q (np.ndarray, optional): only set if specified in "fields". reference for attitude. Defaults to np.array([1,0,0,0]).
+            v (np.ndarray, optional): only set if specified in "fields". reference for velocity. Defaults to np.array([0,0,0]).
+            w (np.ndarray, optional): only set if specified in "fields". reference for angular velocity. Defaults to np.array([0,0,0]).
+            roll  (float, optional):  only set if specified in "fields". reference for roll. Defaults to 0
+            pitch (float, optional):  only set if specified in "fields". reference for pitch. Defaults to 0
+            yaw   (float, optional):  only set if specified in "fields". reference for yaw. Defaults to 0
+        """
+        if "p" in fields:
+            self.position_setpoint = p
+        if "q" in fields:
+            self.attitude_setpoint = q
+        if "v" in fields:
+            self.velocity_setpoint = v
+        if "w" in fields:
+            self.angular_velocity_setpoint = w
+        if "roll" in fields:
+            self.roll_setpoint = roll
+            self.attitude_setpoint = euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
+        if "pitch" in fields:
+            self.pitch_setpoint = pitch
+            self.attitude_setpoint = euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
+        if "yaw" in fields:
+            self.yaw_setpoint = yaw
+            self.attitude_setpoint = euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
         
-        
+        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
     
     def set_mpc_target_pos(self):
              
@@ -360,26 +423,27 @@ class OffboardControl(Node):
                
         self.attitude_setpoint = euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))        
         
-        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)      
+        self.update_setpoint()
+        #self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)      
         print('New target setpoint: {}'.format(self.setpoint))
         
         self.set_mpc_target_pos()
         
         return SetParametersResult(successful=True)
 
-        
+    
+    
+       
     def setup_mpc(self):
         
         ocp = AcadosOcp()
         
         # set model
-        
         model = export_drone_ode_model()
         ocp.model = model
         
 
         ocp.dims.N = self.N_horizon
-        
         ocp.parameter_values = self.parameters
         
         
@@ -393,10 +457,6 @@ class OffboardControl(Node):
         Q_p_final = np.diag([10,10,100])
         Q_q_final = np.eye(1)*100
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
-        
-        
-        
-        
         
         
         
@@ -422,44 +482,18 @@ class OffboardControl(Node):
         ocp.constraints.lbu = np.array([Tmin, Tmin, Tmin, Tmin])
         ocp.constraints.ubu = np.array([Tmax, Tmax, Tmax, Tmax])
         ocp.constraints.idxbu = np.array([0, 1, 2, 3])
-    
-        
-        ocp.constraints.lbx = np.array([-vmax, -vmax, -vmax, -angular_vmax, -angular_vmax, -angular_vmax])
-        ocp.constraints.ubx = np.array([+vmax, +vmax, +vmax, +angular_vmax, +angular_vmax, +angular_vmax])
-        ocp.constraints.idxbx = np.array([7, 8, 9, 10, 11, 12])
               
-        ocp.constraints.lbx = np.array([-self.max_angle_q, -self.max_angle_q])
-        ocp.constraints.ubx = np.array([+self.max_angle_q, +self.max_angle_q])
-        ocp.constraints.idxbx = np.array([4,5])
+        ocp.constraints.lbx = np.array([-self.max_angle_q, -self.max_angle_q, -vmax, -vmax, -vmax, -angular_vmax, -angular_vmax, -angular_vmax])
+        ocp.constraints.ubx = np.array([+self.max_angle_q, +self.max_angle_q, +vmax, +vmax, +vmax, +angular_vmax, +angular_vmax, +angular_vmax])
+        ocp.constraints.idxbx = np.array([4, 5, 7, 8, 9, 10, 11, 12])
         
         
         # set initial state
-        current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
-        ocp.constraints.x0 = current_state
+        #current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
+        ocp.constraints.x0 = self.current_state
                 
         
-        # constrain q to have norm = 1
-        #q = SX.sym('q', 4)
-        ####
-        #f_norm = Function('f_norm', [q], [sqrt(q[0]**2 + q[1]**2 + q[2]**2 + q[3]**2)])
-        ##f_roll = Function('f_roll', [q], [quaternion_to_euler_casadi(q)[0]])
-        ##f_pitch = Function('f_pitch', [q], [quaternion_to_euler_casadi(q)[1]])
-        ####
-        ####
-        ##### constrain maximum angle of quadrotor
-        ##max_angle = 30 * np.pi / 180
-        ####
-        #ocp.model.con_h_expr = f_norm(ocp.model.x[3:7])
-        #ocp.constraints.lh = np.array([1]) # Lower bounds
-        #ocp.constraints.uh = np.array([1]) # Upper bounds
-        ##
-        #### copy for terminal shooting node
-        #ocp.model.con_h_expr_e = f_norm(ocp.model.x[3:7])
-        #ocp.constraints.lh_e = np.array([1]) # Lower bounds
-        #ocp.constraints.uh_e = np.array([1]) # Upper bounds
-        
-        
-        
+
         
         
         # set prediction horizon
@@ -487,30 +521,30 @@ class OffboardControl(Node):
         self.vehicle_status = vehicle_status
         
     def vehicle_odometry_callback(self, vehicle_odometry):
-        """Callback function for vehicle_odometry topic subscriber."""
+        """Callback function for vehicle_odometry topic subscriber.
+        Updates position, velocity, attitude and angular velocity
+
+        Args:
+            vehicle_odometry (px4_msgs.msg.VehicleOdometry): odometry message from drone
+        """
         
         
         self.position = self.NED_to_ENU(vehicle_odometry.position)
-        
-        
         self.velocity = self.NED_to_ENU(vehicle_odometry.velocity)
-        
         self.attitude = self.NED_to_ENU(vehicle_odometry.q)
         self.angular_velocity = self.NED_to_ENU(vehicle_odometry.angular_velocity)
         
         
-        
-        #self.position = np.array([0,0,0])
-        #self.attitude = np.array([1,0,0,0])
-        #self.velocity = np.array([0,0,0])
-        #self.angular_velocity = np.array([0,0,0])
-        
-        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
+        self.update_current_state()
               
     
     
     def vehicle_motor_callback(self, motor_output):
-        
+        """Callback function for motor rpm
+
+        Args:
+            motor_output (px4_msgs.msg.ActuatorMotors): motor rpm from drone
+        """
         
         m0 = motor_output.output[0]
         m1 = motor_output.output[1]
@@ -519,11 +553,6 @@ class OffboardControl(Node):
         
         thrust = np.zeros(4)
         
-        #thrust[0] = m0 / self.max_motor_rpm
-        #thrust[1] = m1 / self.max_motor_rpm
-        #thrust[2] = m2 / self.max_motor_rpm
-        #thrust[3] = m3 / self.max_motor_rpm
-        
         
         thrust[0] = self.inverse_map_thrust(m0)
         thrust[1] = self.inverse_map_thrust(m1)
@@ -531,44 +560,16 @@ class OffboardControl(Node):
         thrust[3] = self.inverse_map_thrust(m3)
         
         
-        #thrust[0] = self.hover_thrust
-        #thrust[1] = self.hover_thrust
-        #thrust[2] = self.hover_thrust
-        #thrust[3] = self.hover_thrust
-        
         self.thrust = thrust
-        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
+        self.update_current_state()
         
         
     
-    def NED_to_ENU_old(self, input_array):
-        """
-        Rotates a 3D vector or a quaternion by 180 degrees around the x-axis.
 
-        Parameters:
-        input_array (np.ndarray): The input to be rotated. Should be a NumPy array of shape (3,) for a 3D vector or (4,) for a quaternion.
-
-        Returns:
-        np.ndarray: The rotated 3D vector or quaternion.
-        """
-        if input_array.shape == (3,):
-            
-            # Handle as a 3D vector
-            # A 180-degree rotation around the x-axis flips the signs of the y and z components
-            rotated_array = input_array * np.array([1, -1, -1])
-        elif input_array.shape == (4,):
-            # Handle as a quaternion
-            # For a 180-degree rotation around the x-axis, the quaternion is [0, 1, 0, 0]
-            # This effectively flips the signs of the y and z components of the vector part
-            rotated_array = input_array * np.array([1, -1, -1, -1])
-        else:
-            raise ValueError("Input array must be either a 3D vector or a quaternion (shape (3,) or (4,)).")
-        
-        return rotated_array
     
     def NED_to_ENU(self, input_array):
         """
-        Rotates a 3D vector or a quaternion by 180 degrees around the x-axis.
+        Convert NED frame convention from drone into ENU frame convention used in MPC
 
         Parameters:
         input_array (np.ndarray): The input to be rotated. Should be a NumPy array of shape (3,) for a 3D vector or (4,) for a quaternion.
@@ -581,31 +582,21 @@ class OffboardControl(Node):
             # Handle as a 3D vector
             # A 180-degree rotation around the x-axis flips the signs of the y and z components
             rot_x = R.from_euler('x', 180, degrees=True)
-            #rot_z = R.from_euler('z', 90, degrees=True)
             rotated_array = rot_x.apply(input_array)
             
             #rotated_array = rot_z.apply(rotated_array)
         elif input_array.shape == (4,):
             
             # Handle as a quaternion
-            # For a 180-degree rotation around the x-axis, the quaternion is [0, 1, 0, 0]
-            # This effectively flips the signs of the y and z components of the vector part
-            #q_rot_z = euler_to_quaternion_numpy(np.array([0,0,90]))
+            # A 180-degree rotation around the x-axis flips the signs of the y and z components
+            
             input_array = input_array/np.linalg.norm(input_array)
             rotated_array = np.zeros(4)
-            #q_rot_x = np.array([0,1,0,0])
-            #
-            #rotated_array = multiply_quaternions_numpy(q_rot_x, input_array)
             
             rotated_array[0] = input_array[0]
             rotated_array[1] = input_array[1]
             rotated_array[2] = -input_array[2]
-            rotated_array[3] = -input_array[3]
-            #rotated_array[1] = -1 * rotated_array[1]
-            
-            #rotated_array = input_array * np.array([1, 1, -1, -1])
-            
-            
+            rotated_array[3] = -input_array[3]        
             
         else:
             raise ValueError("Input array must be either a 3D vector or a quaternion (shape (3,) or (4,)).")
@@ -614,24 +605,16 @@ class OffboardControl(Node):
     
     
         
-    def map_logarithmic(self, input_value):
-        # Ensure the input is within the expected range
-        #if input_value < 0 or input_value > 10:
-         #   raise ValueError("Input value must be between 0 and 10")
-        
-        # Normalize input from 0-10 to 1-11
-        normalized_input = input_value + 1
-        
-        # Apply logarithm with base 2
-        log_output = np.log2(normalized_input)
-        
-        # Scale the output from 0 to slightly above 3 to 0-1
-        scaled_output = log_output / np.log2(11)
-        
-        return scaled_output
     
     def map_thrust(self, input_value):
-        
+        """Maps the force requested by MPC to a value between [0,1] for motor command
+
+        Args:
+            input_value (float): requested force
+
+        Returns:
+            float: mapped motor input
+        """
         output = (340.3409*input_value**0.5097284)/1100
         
         if output > 1:
@@ -642,6 +625,14 @@ class OffboardControl(Node):
             return output
     
     def inverse_map_thrust(self, input_value):
+        """Inverse map thrust. Calculate current state of force from motor for MPC. Convert from [%] throttle readout from motors to force.
+
+        Args:
+            input_value (int): motor speed. value between [0, 1500] 
+
+        Returns:
+            float: current force of motor
+        """
         try:
             x = (input_value / 340.3409) ** (1 / 0.5097284)
             
@@ -695,21 +686,17 @@ class OffboardControl(Node):
         msg = ActuatorMotors()
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         
-        #params = self.get_parameters(
-        #    ['motor_speed_0', 'motor_speed_1', 'motor_speed_2', 'motor_speed_3'])
-        #
-        #control = np.asarray([p.value for p in params])
-        
+        # correct motor mapping: difference from paper to PX4
         msg.control[0] = control[0]  # Motor 1
         msg.control[1] = control[2]  # Motor 2
         msg.control[2] = control[3]  # Motor 3
         msg.control[3] = control[1]  # Motor 4
         
         self.motor_command_publisher.publish(msg)
-        #self.get_logger().info('Publishing: "%s"' % control)
+        
         
     def publish_motor_command_pseudo(self, control):
-        """Publish the motor command setpoint."""
+        """Publish the motor command setpoint. Pseudo topic, only used for debugging"""
         msg = ActuatorMotors()
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         
@@ -719,7 +706,6 @@ class OffboardControl(Node):
         msg.control[3] = control[1]  # Motor 4
         
         self.motor_command_publisher_pseudo.publish(msg)
-        #self.get_logger().info('Publishing: "%s"' % control)
     
     def publish_vehicle_command(self, command, **params) -> None:
         """Publish a vehicle command."""
@@ -750,97 +736,43 @@ class OffboardControl(Node):
             self.engage_offboard_mode()
             self.arm()
         elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
-        #if True:
             # if in offboard mode: get setpoint from parameters, get optimal U, publish motor command
             
-            
-            
-            
-            
-            
-            
-            
-            
-            
-            
             if self.offboard_setpoint_counter < 100:
-                p = np.array([0,0,0])
-                q = np.array([np.sqrt(2)/2,0,0,-np.sqrt(2)/2])
-                v = np.array([0,0,0])
-                w = np.array([0,0,0])
-                t = np.ones(4)*self.hover_thrust
                 
+                # let solver warm up before actually publishing commands
                 
-                
-                current_state = np.concatenate((p,q,v,w,t), axis=None)
-                
-                U = self.ocp_solver.solve_for_x0(x0_bar = current_state, fail_on_nonzero_status=False)
+                U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state, fail_on_nonzero_status=False)
                 command = np.asarray([self.map_thrust(u) for u in U])
-            #
                 
                 self.publish_motor_command(np.zeros(4))
                 self.publish_motor_command_pseudo(command)
-                #cost = self.ocp_solver.get_cost()
+
             elif self.offboard_setpoint_counter == 100:
                 print('starting control')
                 self.set_mpc_target_pos()    
-            else:
-                
-                p = np.array([0,0,0])
-                q = np.array([1,0,0,0])
-                v = np.array([0,0,0])
-                w = np.array([0,0,0])
-                t = np.ones(4)*self.hover_thrust
-                
-                
-                
-                current_state = np.concatenate((p,q,v,w,t), axis=None)
-            
-                
-                
-                
+            else:      
                 
                 U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state, fail_on_nonzero_status=False)
-                #thrust = self.ocp_solver.get(1, 'x')[13:]
-                #self.thrust = np.ones(4)*self.hover_thrust
-                #self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None)
+
                 command = np.asarray([self.map_thrust(u) for u in U])
-                #command = np.asarray(U)
-                #cost = self.ocp_solver.get_cost()
-                #print("Position: {}".format(self.current_state[0:3]))
-                #print("Velocity: {}".format(self.current_state[7:10]))
-                #print("Attitude: {}".format(quaternion_to_euler_numpy(self.current_state[3:7])))
-                #q_sim = np.asarray(self.ocp_solver.get(20 , 'x')[3:7])
-                #euler_sim = quaternion_to_euler_numpy(q_sim)
-                #
-                #q_real = self.current_state[3:7]
-                #euler_real = quaternion_to_euler_numpy(q_real)
                 
-                #print("Real Attitude: {}".format(euler_real))
-                #print("Motors:")
+                # optinally print motor commands
                 
-                #           original motor config
+                print('FL: {}, FR: {}'.format(command[3], command[0]))
+                print('BL: {}, BR: {}\n'.format(command[2], command[1]))
                 
-                #print('FL: {}, FR: {}'.format(command[3], command[0]))
-                #print('BL: {}, BR: {}\n'.format(command[2], command[1]))
                 
-                #           test motor config
-                #print('FL: {}, FR: {}'.format(command[1], command[2]))
-                #print('BL: {}, BR: {}\n'.format(command[0], command[3]))
-                #print('Real norm: {}'.format(np.linalg.norm(q_real)))
-                #print("Simu Attitude: {}\n".format(euler_sim))
-                #print('Simu norm: {}\n'.format(np.linalg.norm(q_sim)))
-                #print(quaternion_to_euler_numpy(self.current_state[3:7])+ "\n")
                 self.publish_motor_command(command)
                 self.publish_motor_command_pseudo(command)
-                print('Position: {}'.format(self.position))
+                
+                #print(self.current_state)
+                #print(self.setpoint)
+                # print position and attitude
+                #print('Position: {}'.format(self.position))
                 #print('Velocity: {}'.format(self.velocity))
                 #print('Attitude: {}'.format(self.attitude))
-                print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
-            
-            end = time.time()
-            
-            #print("MPC took %f ms \n" % ((end-start)*1000))
+                #print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
             
             
         if self.offboard_setpoint_counter < 200:

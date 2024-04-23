@@ -381,9 +381,9 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     double* p = calloc(NP, sizeof(double));
     p[0] = 1.5;
     p[1] = -9.81;
-    p[2] = 0.0029125;
-    p[3] = 0.0029125;
-    p[4] = 0.0055225;
+    p[2] = 0.029125;
+    p[3] = 0.029125;
+    p[4] = 0.055225;
     p[5] = 0.107;
     p[6] = 0.107;
     p[7] = 0.107;
@@ -392,7 +392,7 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     p[10] = 0.0935;
     p[11] = 0.0935;
     p[12] = 0.0935;
-    p[13] = 0.0806428;
+    p[13] = 0.000806428;
     p[17] = 0.7071067811865476;
     p[20] = -0.7071067811865476;
 
@@ -550,13 +550,13 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* ubu = lubu + NBU;
     
     lbu[0] = 1;
-    ubu[0] = 10;
+    ubu[0] = 8;
     lbu[1] = 1;
-    ubu[1] = 10;
+    ubu[1] = 8;
     lbu[2] = 1;
-    ubu[2] = 10;
+    ubu[2] = 8;
     lbu[3] = 1;
-    ubu[3] = 10;
+    ubu[3] = 8;
 
     for (int i = 0; i < N; i++)
     {
@@ -574,6 +574,46 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
 
 
 
+    // x
+    int* idxbx = malloc(NBX * sizeof(int));
+    
+    idxbx[0] = 4;
+    idxbx[1] = 5;
+    idxbx[2] = 7;
+    idxbx[3] = 8;
+    idxbx[4] = 9;
+    idxbx[5] = 10;
+    idxbx[6] = 11;
+    idxbx[7] = 12;
+    double* lubx = calloc(2*NBX, sizeof(double));
+    double* lbx = lubx;
+    double* ubx = lubx + NBX;
+    
+    lbx[0] = -0.2;
+    ubx[0] = 0.2;
+    lbx[1] = -0.2;
+    ubx[1] = 0.2;
+    lbx[2] = -2;
+    ubx[2] = 2;
+    lbx[3] = -2;
+    ubx[3] = 2;
+    lbx[4] = -2;
+    ubx[4] = 2;
+    lbx[5] = -1;
+    ubx[5] = 1;
+    lbx[6] = -1;
+    ubx[6] = 1;
+    lbx[7] = -1;
+    ubx[7] = 1;
+
+    for (int i = 1; i < N; i++)
+    {
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "idxbx", idxbx);
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "lbx", lbx);
+        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "ubx", ubx);
+    }
+    free(idxbx);
+    free(lubx);
 
 
 
@@ -645,11 +685,11 @@ int fixed_hess = 0;
     double nlp_solver_step_length = 1;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "step_length", &nlp_solver_step_length);
 
-    double levenberg_marquardt = 20;
+    double levenberg_marquardt = 15;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 100;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 40;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 
