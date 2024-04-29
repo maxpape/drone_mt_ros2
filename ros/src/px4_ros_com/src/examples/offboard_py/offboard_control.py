@@ -6,12 +6,13 @@ import numpy as np
 import scipy.linalg
 import scipy.interpolate
 import time
+import collections
 from casadi import SX, vertcat, Function, sqrt, norm_2, dot, cross, atan2, if_else
 import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-from px4_msgs.msg import OffboardControlMode, VehicleCommand, VehicleStatus, ActuatorMotors, VehicleOdometry, ActuatorOutputs
+from px4_msgs.msg import OffboardControlMode, VehicleCommand, VehicleStatus, ActuatorMotors, VehicleOdometry, ActuatorOutputs, SensorCombined
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, FloatingPointRange
 from acados_template import AcadosOcp, AcadosOcpSolver
 from drone_model import export_drone_ode_model
@@ -73,25 +74,52 @@ def quaternion_to_euler_casadi(q):
 
 
 
-def multiply_quaternions_numpy(q1, q2):
-    """Multiply two quaternioins given as numpy arrays
+def quaternion_inverse_numpy(q):
+    """Invert a quaternion given as a numpy expression
 
     Args:
-        q1 (np.ndarray): input quaternion q1
-        q2 (np.ndarray): input quaternion q2
+        q (np.ndarray): input quaternion
+
+    Returns:
+        np.ndarray: inverted quaternion
+    """
+
+    return np.array([1, -1, -1, -1]) * q / (np.linalg.norm(q) ** 2)
+
+def quaternion_product_numpy(q, p):
+    """Multiply two quaternions given as numpy arrays
+
+    Args:
+        q (np.ndarray): input quaternion q
+        p (np.ndarray): input quaternion p
 
     Returns:
         np.ndarray: output quaternion
     """
-    w1, x1, y1, z1 = q1
-    w2, x2, y2, z2 = q2
-    
-    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
-    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
-    y = w1 * y2 + y1 * w2 + z1 * x2 - x1 * z2
-    z = w1 * z2 + z1 * w2 + x1 * y2 - y1 * x2
-    
-    return np.array([w, x, y, z])
+    s1 = q[0]
+    v1 = q[1:4]
+    s2 = p[0]
+    v2 = p[1:4]
+    s = s1 * s2 - np.dot(v1, v2)
+    v = s1 * v2 + s2 * v1 + np.cross(v1, v2)
+    return np.concatenate((s, v), axis=None)
+
+def quat_rotation_numpy(v, q):
+    """Rotates a vector v by the quaternion q
+
+    Args:
+        v (np.ndarray): input vector
+        q (np.ndarray): input quaternion
+
+    Returns:
+        np.ndarray: rotated vector
+    """
+
+    p = np.concatenate((0.0, v), axis=None)
+    p_rotated = quaternion_product_numpy(
+        quaternion_product_numpy(q, p), quaternion_inverse_numpy(q)
+    )
+    return p_rotated[1:4]
 
 
 def multiply_quaternions_casadi(q, p):
@@ -199,6 +227,8 @@ class OffboardControl(Node):
             VehicleOdometry, '/fmu/out/vehicle_odometry', self.vehicle_odometry_callback, qos_profile)
         self.vehicle_motor_subscriber = self.create_subscription(
             ActuatorOutputs, '/fmu/out/actuator_outputs', self.vehicle_motor_callback, qos_profile)
+        self.vehicle_imu_subscriber = self.create_subscription(
+            SensorCombined, '/fmu/out/sensor_combined', self.vehicle_imu_callback, qos_profile)
 
 
 
@@ -212,10 +242,10 @@ class OffboardControl(Node):
         self.Tf = 2
         self.nx = 17
         self.nu = 4
-        self.Tmax = 8
+        self.Tmax = 7
         self.Tmin = 1
-        self.vmax = 2
-        self.angular_vmax = 1
+        self.vmax = 3
+        self.angular_vmax = 1.5
         self.max_angle_q = 0.2
         self.max_motor_rpm = 1100
         
@@ -265,7 +295,15 @@ class OffboardControl(Node):
         self.attitude = np.asarray([np.sqrt(2)/2, 0, 0, -np.sqrt(2)/2])
         self.angular_velocity = np.zeros(3)
         self.thrust = np.ones(4)*self.hover_thrust
+        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, self.get_clock().now().nanoseconds), axis=None)
+        self.state_history = collections.deque(maxlen=20)
         self.update_current_state()
+        
+        
+        # imu data
+        self.linear_accel = np.zeros(3)
+        self.angular_accel = np.zeros(3)
+        self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, self.get_clock().now().nanoseconds), axis=None)
         
         
         #setpoint variables
@@ -276,6 +314,7 @@ class OffboardControl(Node):
         self.pitch_setpoint = 0
         self.yaw_setpoint = 0
         self.angular_velocity_setpoint = np.zeros(3)
+        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
         self.update_setpoint()
         
         
@@ -359,7 +398,8 @@ class OffboardControl(Node):
         """aggregates individual states to combined state of system
         """
         
-        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust), axis=None) 
+        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, self.get_clock().now().nanoseconds), axis=None)
+        self.state_history.appendleft(self.current_state) 
         
     def update_setpoint(self, fields="", p=np.array([0,0,0]), q=np.array([1,0,0,0]), v=np.array([0,0,0]), w=np.array([0,0,0]), roll=0.0, pitch=0.0, yaw=0.0):
         """Updates one ore more reference setpoint values
@@ -490,7 +530,7 @@ class OffboardControl(Node):
         
         # set initial state
     
-        ocp.constraints.x0 = self.current_state
+        ocp.constraints.x0 = self.current_state[:-1]
                 
         
 
@@ -562,6 +602,20 @@ class OffboardControl(Node):
         
         self.thrust = thrust
         self.update_current_state()
+        
+    def vehicle_imu_callback(self, imu_data):
+        
+        linear_accel_body = self.NED_to_ENU(imu_data.accelerometer_m_s2)
+        linear_accel_body[0] = -linear_accel_body[0]
+        linear_accel_body[1] = -linear_accel_body[1]
+        linear_accel_body[2] -= 9.81
+        angular_accel_body = self.NED_to_ENU(imu_data.gyro_rad)
+        
+        
+        q = self.attitude
+        self.linear_accel =  quat_rotation_numpy(linear_accel_body, q)
+        self.angular_accel = quat_rotation_numpy(angular_accel_body, q)
+        self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, self.get_clock().now().nanoseconds), axis=None)
         
         
     
@@ -742,7 +796,7 @@ class OffboardControl(Node):
                 
                 # let solver warm up before actually publishing commands
                 
-                U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state, fail_on_nonzero_status=False)
+                U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
                 command = np.asarray([self.map_thrust(u) for u in U])
                 
                 self.publish_motor_command(np.zeros(4))
@@ -753,19 +807,30 @@ class OffboardControl(Node):
                 self.set_mpc_target_pos()    
             else:      
                 
-                U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state, fail_on_nonzero_status=False)
+                U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
 
                 command = np.asarray([self.map_thrust(u) for u in U])
                 
                 # optinally print motor commands
                 
-                print('FL: {}, FR: {}'.format(command[3], command[0]))
-                print('BL: {}, BR: {}\n'.format(command[2], command[1]))
+                #print('FL: {}, FR: {}'.format(command[3], command[0]))
+                #print('BL: {}, BR: {}\n'.format(command[2], command[1]))
                 
                 
                 self.publish_motor_command(command)
                 self.publish_motor_command_pseudo(command)
                 
+                
+                
+                print("Linear accel: {}".format(self.linear_accel))
+                print("Angula accel: {}\n".format(self.angular_accel))
+                
+                #q = self.attitude
+                #lin_accel_rot = quat_rotation_numpy(self.linear_accel, q)
+                #ang_accel_rot = quat_rotation_numpy(self.angular_accel, q)
+                #
+                #print("Lin acc  rot: {}".format(lin_accel_rot))
+                #print("Ang acc  rot: {}\n".format(ang_accel_rot))
                 
                 # optinally print position and attitude
                 #print('Position: {}'.format(self.position))

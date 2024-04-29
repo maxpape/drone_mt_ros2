@@ -568,13 +568,13 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* ubu = lubu + NBU;
     
     lbu[0] = 1;
-    ubu[0] = 8;
+    ubu[0] = 7;
     lbu[1] = 1;
-    ubu[1] = 8;
+    ubu[1] = 7;
     lbu[2] = 1;
-    ubu[2] = 8;
+    ubu[2] = 7;
     lbu[3] = 1;
-    ubu[3] = 8;
+    ubu[3] = 7;
 
     for (int i = 0; i < N; i++)
     {
@@ -611,18 +611,18 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     ubx[0] = 0.2;
     lbx[1] = -0.2;
     ubx[1] = 0.2;
-    lbx[2] = -2;
-    ubx[2] = 2;
-    lbx[3] = -2;
-    ubx[3] = 2;
-    lbx[4] = -2;
-    ubx[4] = 2;
-    lbx[5] = -1;
-    ubx[5] = 1;
-    lbx[6] = -1;
-    ubx[6] = 1;
-    lbx[7] = -1;
-    ubx[7] = 1;
+    lbx[2] = -3;
+    ubx[2] = 3;
+    lbx[3] = -3;
+    ubx[3] = 3;
+    lbx[4] = -3;
+    ubx[4] = 3;
+    lbx[5] = -1.5;
+    ubx[5] = 1.5;
+    lbx[6] = -1.5;
+    ubx[6] = 1.5;
+    lbx[7] = -1.5;
+    ubx[7] = 1.5;
 
     for (int i = 1; i < N; i++)
     {

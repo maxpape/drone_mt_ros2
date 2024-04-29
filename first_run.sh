@@ -11,6 +11,7 @@ pip install --user -U empy==3.3.4 pyros-genmsg setuptools
 pip install symforce
 pip install casadi
 pip install spatial-casadi
+pip install GPy
 bash ./PX4-Autopilot/Tools/setup/ubuntu.sh
 cd PX4-Autopilot/
 DONT_RUN = 1 make px4_sitl gz_x500
