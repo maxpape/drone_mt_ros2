@@ -294,8 +294,13 @@ class OffboardControl(Node):
         # imu data
         self.linear_accel = np.zeros(3)
         self.angular_accel = np.zeros(3)
+        self.imu_timestamp = 0.0
         self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, self.get_clock().now().nanoseconds), axis=None)
         self.imu_history = collections.deque(maxlen=20)
+        self.sim_imu_history = collections.deque(maxlen=2)
+        self.imu_history.appendleft(self.imu_data)
+        self.sim_imu_history.appendleft(np.array([0,0,0,0,0,0]))
+        
         
         
         
@@ -308,6 +313,7 @@ class OffboardControl(Node):
         self.thrust = np.ones(4)*self.hover_thrust
         self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, self.get_clock().now().nanoseconds), axis=None)
         self.state_history = collections.deque(maxlen=20)
+        self.state_history.appendleft(self.current_state)
         self.update_current_state()
         
         
@@ -404,6 +410,14 @@ class OffboardControl(Node):
         """
         timestamp = self.get_clock().now().nanoseconds
         self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, timestamp), axis=None)
+        
+        
+        
+        
+        
+        
+        self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, self.imu_timestamp), axis=None)
+        
         self.state_history.appendleft(self.current_state)
         self.imu_history.appendleft(self.imu_data) 
         
@@ -619,10 +633,15 @@ class OffboardControl(Node):
         
         
         q = self.attitude
-        self.linear_accel =  quat_rotation_numpy(linear_accel_body, q)
-        self.angular_accel = quat_rotation_numpy(angular_accel_body, q)
+        linear_accel =  quat_rotation_numpy(linear_accel_body, q)
+        angular_accel = quat_rotation_numpy(angular_accel_body, q)
         timestamp = self.get_clock().now().nanoseconds
-        self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, timestamp), axis=None)
+        
+        self.linear_accel = linear_accel
+        self.angular_accel = angular_accel
+        self.imu_timestamp = timestamp
+        
+        #self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, timestamp), axis=None)
         
         
     
@@ -827,32 +846,55 @@ class OffboardControl(Node):
                 self.publish_motor_command(command)
                 self.publish_motor_command_pseudo(command)
                 
+                lin_hist = np.asarray(self.sim_imu_history)[:,0:3]
+                ang_hist = np.asarray(self.sim_imu_history)[:,3:6]
+                #
                 x0_v = self.state_history[1][7:10]
                 x1_v = self.state_history[0][7:10]
+                
+                
+                x0_w = self.state_history[1][10:13]
+                x1_w = self.state_history[0][10:13]
+                
                 t_0 = self.state_history[1][-1] * 1e-9
                 t_1 = self.state_history[0][-1] * 1e-9
+                #
+                sim_accel_lin = (x1_v - x0_v) / (t_1-t_0)
+                sim_accel_ang = (x1_w - x0_w) / (t_1-t_0)
+                #
+                lin_accel_avg = np.mean(np.concatenate((lin_hist,np.array([sim_accel_lin])), axis=0), axis=0)
+                ang_accel_avg = np.mean(np.concatenate((ang_hist,np.array([sim_accel_ang])), axis=0), axis=0)
                 
-                sim_accel = (x1_v - x0_v) / (t_1-t_0)
+                self.sim_imu_history.appendleft(np.concatenate((lin_accel_avg, ang_accel_avg), axis=None))
                 
-                print("Time diff real, simu: {}".format(self.imu_history[0][-1] * 1e-9 - t_1))
-                print("Linear accel real: {}".format(self.imu_history[0][0:3]))
-                print("Linear accel simu: {}\n".format(sim_accel))
+                
+                
+                
+                
+                
+                
+                
+                
+                #print("Time diff real, simu: {}".format(self.imu_history[0][-1] * 1e-9 - t_1))
+                #print("Linear accel real: {}".format(self.imu_history[0][0:3]))
+                #print("Linear accel simu: {}\n".format(sim_accel))
                 
                 # publish data for plotjuggler
                 imu_real = Vector3()
                 imu_sim = Vector3()
+                #
+                imu_real.x = self.imu_history[0][2]
+                imu_real.y = self.imu_history[0][3]
+                imu_real.z = self.imu_history[0][4]
                 
-                imu_real.x = self.imu_history[0][0]
-                imu_real.y = self.imu_history[0][1]
-                imu_real.z = self.imu_history[0][2]
-                
-                imu_sim.x = sim_accel[0]
-                imu_sim.y = sim_accel[1]
-                imu_sim.z = sim_accel[2]
+                #print(self.sim_imu_history[0][0])
+                imu_sim.x = self.sim_imu_history[0][2]
+                imu_sim.y = self.sim_imu_history[0][3]
+                imu_sim.z = self.sim_imu_history[0][4]
                 
                 self.imu_pub_real.publish(imu_real)
                 self.imu_pub_sim.publish(imu_sim)
-
+#
                 
                 # optinally print position and attitude
                 #print('Position: {}'.format(self.position))
