@@ -7,12 +7,14 @@ import scipy.linalg
 import scipy.interpolate
 import time
 import collections
+import pandas as pd
 from casadi import SX, vertcat, Function, sqrt, norm_2, dot, cross, atan2, if_else
 import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import OffboardControlMode, VehicleCommand, VehicleStatus, ActuatorMotors, VehicleOdometry, ActuatorOutputs, SensorCombined
+from geometry_msgs.msg import Vector3
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, FloatingPointRange
 from acados_template import AcadosOcp, AcadosOcpSolver
 from drone_model import export_drone_ode_model
@@ -219,6 +221,11 @@ class OffboardControl(Node):
             ActuatorMotors, '/fmu/in/actuator_motors', qos_profile)
         self.motor_command_publisher_pseudo = self.create_publisher(
             ActuatorMotors, '/fmu/in/actuator_motors_pseudo', qos_profile)
+        
+        self.imu_pub_real = self.create_publisher(
+            Vector3, '/imu_data_real', qos_profile)
+        self.imu_pub_sim = self.create_publisher(
+            Vector3, '/imu_data_sim', qos_profile)
 
         # Create subscribers
         self.vehicle_status_subscriber = self.create_subscription(
@@ -284,7 +291,11 @@ class OffboardControl(Node):
                             self.d_y3,
                             self.c_tau])
         
-        
+        # imu data
+        self.linear_accel = np.zeros(3)
+        self.angular_accel = np.zeros(3)
+        self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, self.get_clock().now().nanoseconds), axis=None)
+        self.imu_history = collections.deque(maxlen=20)
         
         
         
@@ -298,12 +309,6 @@ class OffboardControl(Node):
         self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, self.get_clock().now().nanoseconds), axis=None)
         self.state_history = collections.deque(maxlen=20)
         self.update_current_state()
-        
-        
-        # imu data
-        self.linear_accel = np.zeros(3)
-        self.angular_accel = np.zeros(3)
-        self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, self.get_clock().now().nanoseconds), axis=None)
         
         
         #setpoint variables
@@ -397,9 +402,10 @@ class OffboardControl(Node):
     def update_current_state(self):
         """aggregates individual states to combined state of system
         """
-        
-        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, self.get_clock().now().nanoseconds), axis=None)
-        self.state_history.appendleft(self.current_state) 
+        timestamp = self.get_clock().now().nanoseconds
+        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, timestamp), axis=None)
+        self.state_history.appendleft(self.current_state)
+        self.imu_history.appendleft(self.imu_data) 
         
     def update_setpoint(self, fields="", p=np.array([0,0,0]), q=np.array([1,0,0,0]), v=np.array([0,0,0]), w=np.array([0,0,0]), roll=0.0, pitch=0.0, yaw=0.0):
         """Updates one ore more reference setpoint values
@@ -615,7 +621,8 @@ class OffboardControl(Node):
         q = self.attitude
         self.linear_accel =  quat_rotation_numpy(linear_accel_body, q)
         self.angular_accel = quat_rotation_numpy(angular_accel_body, q)
-        self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, self.get_clock().now().nanoseconds), axis=None)
+        timestamp = self.get_clock().now().nanoseconds
+        self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, timestamp), axis=None)
         
         
     
@@ -804,7 +811,7 @@ class OffboardControl(Node):
 
             elif self.offboard_setpoint_counter == 100:
                 print('starting control')
-                self.set_mpc_target_pos()    
+                self.set_mpc_target_pos()   
             else:      
                 
                 U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
@@ -820,17 +827,32 @@ class OffboardControl(Node):
                 self.publish_motor_command(command)
                 self.publish_motor_command_pseudo(command)
                 
+                x0_v = self.state_history[1][7:10]
+                x1_v = self.state_history[0][7:10]
+                t_0 = self.state_history[1][-1] * 1e-9
+                t_1 = self.state_history[0][-1] * 1e-9
                 
+                sim_accel = (x1_v - x0_v) / (t_1-t_0)
                 
-                print("Linear accel: {}".format(self.linear_accel))
-                print("Angula accel: {}\n".format(self.angular_accel))
+                print("Time diff real, simu: {}".format(self.imu_history[0][-1] * 1e-9 - t_1))
+                print("Linear accel real: {}".format(self.imu_history[0][0:3]))
+                print("Linear accel simu: {}\n".format(sim_accel))
                 
-                #q = self.attitude
-                #lin_accel_rot = quat_rotation_numpy(self.linear_accel, q)
-                #ang_accel_rot = quat_rotation_numpy(self.angular_accel, q)
-                #
-                #print("Lin acc  rot: {}".format(lin_accel_rot))
-                #print("Ang acc  rot: {}\n".format(ang_accel_rot))
+                # publish data for plotjuggler
+                imu_real = Vector3()
+                imu_sim = Vector3()
+                
+                imu_real.x = self.imu_history[0][0]
+                imu_real.y = self.imu_history[0][1]
+                imu_real.z = self.imu_history[0][2]
+                
+                imu_sim.x = sim_accel[0]
+                imu_sim.y = sim_accel[1]
+                imu_sim.z = sim_accel[2]
+                
+                self.imu_pub_real.publish(imu_real)
+                self.imu_pub_sim.publish(imu_sim)
+
                 
                 # optinally print position and attitude
                 #print('Position: {}'.format(self.position))
