@@ -601,7 +601,7 @@ class OffboardControl(Node):
             vehicle_odometry (px4_msgs.msg.VehicleOdometry): odometry message from drone
         """
         
-        self.state_timestamp = self.get_clock().now().nanoseconds
+        self.state_timestamp = vehicle_odometry.timestamp
         self.position = self.NED_to_ENU(vehicle_odometry.position)
         self.velocity = self.NED_to_ENU(vehicle_odometry.velocity)
         self.attitude = self.NED_to_ENU(vehicle_odometry.q)
@@ -920,8 +920,8 @@ class OffboardControl(Node):
                 
                 
                 # get timestamps from states
-                t0 = self.state_history[1][-1] * 1e-9
-                t1 = self.state_history[0][-1] * 1e-9
+                t0 = self.state_history[1][-1] * 1e-6
+                t1 = self.state_history[0][-1] * 1e-6
                 
                 # calculate acceleration from velocity
                 real_accel_lin = (realx_1_v - realx_0_v) / (t1-t0)
@@ -930,10 +930,10 @@ class OffboardControl(Node):
                 
                 # append calculated acceleration to history ringbuffer
                 
-                t = self.get_clock().now().nanoseconds
+                
                 self.linear_accel_real = real_accel_lin
                 self.angular_accel_real = real_accel_ang
-                self.imu_data = np.concatenate((self.linear_accel_real, self.angular_accel_real, t), axis=None)
+                self.imu_data = np.concatenate((self.linear_accel_real, self.angular_accel_real, self.current_state[-1]), axis=None)
                 
                 self.imu_history.appendleft(self.imu_data)
                 
@@ -948,15 +948,15 @@ class OffboardControl(Node):
                 imu_real = Vector3()
                 imu_sim = Vector3()
                 #
-                imu_real.x = self.imu_history[0][2]
-                imu_real.y = self.imu_history[0][3]
-                imu_real.z = self.imu_history[0][4]
+                imu_real.x = self.imu_history[0][0]
+                imu_real.y = self.imu_history[0][1]
+                imu_real.z = self.imu_history[0][2]
                 
                 #print(self.sim_imu_history[0][0])
                 
-                imu_sim.x = float(self.sim_imu_ang_history[1][0])
-                imu_sim.y = float(self.sim_imu_ang_history[1][1])
-                imu_sim.z = float(self.sim_imu_ang_history[1][2])
+                imu_sim.x = float(self.sim_imu_lin_history[1][0])
+                imu_sim.y = float(self.sim_imu_lin_history[1][1])
+                imu_sim.z = float(self.sim_imu_lin_history[1][2])
                 
                 self.imu_pub_real.publish(imu_real)
                 self.imu_pub_sim.publish(imu_sim)
