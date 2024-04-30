@@ -13,7 +13,7 @@ import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
-from px4_msgs.msg import OffboardControlMode, VehicleCommand, VehicleStatus, ActuatorMotors, VehicleOdometry, ActuatorOutputs, SensorCombined
+from px4_msgs.msg import OffboardControlMode, VehicleCommand, VehicleStatus, ActuatorMotors, VehicleOdometry, ActuatorOutputs, SensorCombined, VehicleLocalPosition
 from geometry_msgs.msg import Vector3
 from rcl_interfaces.msg import ParameterDescriptor, ParameterType, FloatingPointRange
 from acados_template import AcadosOcp, AcadosOcpSolver
@@ -236,6 +236,8 @@ class OffboardControl(Node):
             ActuatorOutputs, '/fmu/out/actuator_outputs', self.vehicle_motor_callback, qos_profile)
         self.vehicle_imu_subscriber = self.create_subscription(
             SensorCombined, '/fmu/out/sensor_combined', self.vehicle_imu_callback, qos_profile)
+        self.vehicle_local_position_subscriber = self.create_subscription(
+            VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
 
 
 
@@ -292,14 +294,21 @@ class OffboardControl(Node):
                             self.c_tau])
         
         # imu data
-        self.linear_accel = np.zeros(3)
-        self.angular_accel = np.zeros(3)
+        self.linear_accel_real = np.zeros(3)
+        self.angular_accel_real = np.zeros(3)
         self.imu_timestamp = 0.0
-        self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, self.get_clock().now().nanoseconds), axis=None)
+        self.imu_data = np.concatenate((self.linear_accel_real, self.angular_accel_real, self.get_clock().now().nanoseconds), axis=None)
         self.imu_history = collections.deque(maxlen=20)
-        self.sim_imu_history = collections.deque(maxlen=2)
         self.imu_history.appendleft(self.imu_data)
-        self.sim_imu_history.appendleft(np.array([0,0,0,0,0,0]))
+        
+        
+        self.linear_accel_sim = np.zeros(3)
+        self.angular_accel_sim = np.zeros(3)
+        self.sim_imu_lin_history = collections.deque(maxlen=2)
+        self.sim_imu_ang_history = collections.deque(maxlen=2)
+        self.sim_imu_lin_history.appendleft(np.array([0,0,0,0]))
+        self.sim_imu_ang_history.appendleft(np.array([0,0,0,0]))
+        
         
         
         
@@ -311,11 +320,15 @@ class OffboardControl(Node):
         self.attitude = np.asarray([np.sqrt(2)/2, 0, 0, -np.sqrt(2)/2])
         self.angular_velocity = np.zeros(3)
         self.thrust = np.ones(4)*self.hover_thrust
-        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, self.get_clock().now().nanoseconds), axis=None)
+        self.state_timestamp = self.get_clock().now().nanoseconds
+        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, self.state_timestamp), axis=None)
         self.state_history = collections.deque(maxlen=20)
         self.state_history.appendleft(self.current_state)
         self.update_current_state()
         
+        # state history from MPC sim
+        self.state_history_sim = collections.deque(maxlen=20)
+        self.state_history_sim.appendleft(self.current_state)
         
         #setpoint variables
         self.position_setpoint = np.array([0,0,0])
@@ -408,15 +421,15 @@ class OffboardControl(Node):
     def update_current_state(self):
         """aggregates individual states to combined state of system
         """
-        timestamp = self.get_clock().now().nanoseconds
-        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, timestamp), axis=None)
+        
+        self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, self.state_timestamp), axis=None)
         
         
         
         
         
         
-        self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, self.imu_timestamp), axis=None)
+        self.imu_data = np.concatenate((self.linear_accel_real, self.angular_accel_real, self.imu_timestamp), axis=None)
         
         self.state_history.appendleft(self.current_state)
         self.imu_history.appendleft(self.imu_data) 
@@ -588,14 +601,14 @@ class OffboardControl(Node):
             vehicle_odometry (px4_msgs.msg.VehicleOdometry): odometry message from drone
         """
         
-        
+        self.state_timestamp = self.get_clock().now().nanoseconds
         self.position = self.NED_to_ENU(vehicle_odometry.position)
         self.velocity = self.NED_to_ENU(vehicle_odometry.velocity)
         self.attitude = self.NED_to_ENU(vehicle_odometry.q)
         self.angular_velocity = self.NED_to_ENU(vehicle_odometry.angular_velocity)
         
         
-        self.update_current_state()
+        
               
     
     
@@ -625,6 +638,7 @@ class OffboardControl(Node):
         
     def vehicle_imu_callback(self, imu_data):
         
+        return
         linear_accel_body = self.NED_to_ENU(imu_data.accelerometer_m_s2)
         linear_accel_body[0] = -linear_accel_body[0]
         linear_accel_body[1] = -linear_accel_body[1]
@@ -637,15 +651,36 @@ class OffboardControl(Node):
         angular_accel = quat_rotation_numpy(angular_accel_body, q)
         timestamp = self.get_clock().now().nanoseconds
         
-        self.linear_accel = linear_accel
-        self.angular_accel = angular_accel
+        self.linear_accel_real = linear_accel
+        self.angular_accel_real = angular_accel
         self.imu_timestamp = timestamp
         
         #self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, timestamp), axis=None)
         
         
-    
-
+    def vehicle_local_position_callback(self, local_position):
+        return
+        ax = local_position.ax
+        ay = local_position.ay
+        az = local_position.az
+        
+        acceleration = np.array([ax, ay, az])
+        
+        linear_accel_body = self.NED_to_ENU(acceleration)
+        linear_accel_body[0] = -linear_accel_body[0]
+        linear_accel_body[1] = -linear_accel_body[1]
+        linear_accel_body[2] -= 9.81
+        angular_accel_body = self.NED_to_ENU(imu_data.gyro_rad)
+        
+        
+        q = self.attitude
+        linear_accel =  quat_rotation_numpy(linear_accel_body, q)
+        angular_accel = quat_rotation_numpy(angular_accel_body, q)
+        timestamp = self.get_clock().now().nanoseconds
+        
+        self.linear_accel_real = linear_accel
+        self.angular_accel_real = angular_accel
+        self.imu_timestamp = timestamp
     
     def NED_to_ENU(self, input_array):
         """
@@ -810,6 +845,7 @@ class OffboardControl(Node):
     def timer_callback(self):
         self.publish_offboard_control_heartbeat_signal()
         
+        self.update_current_state()
         
         # wait until enough heartbeat signals have been sent
         if self.offboard_setpoint_counter == 10:
@@ -837,6 +873,8 @@ class OffboardControl(Node):
 
                 command = np.asarray([self.map_thrust(u) for u in U])
                 
+                
+                
                 # optinally print motor commands
                 
                 #print('FL: {}, FR: {}'.format(command[3], command[0]))
@@ -846,39 +884,66 @@ class OffboardControl(Node):
                 self.publish_motor_command(command)
                 self.publish_motor_command_pseudo(command)
                 
-                lin_hist = np.asarray(self.sim_imu_history)[:,0:3]
-                ang_hist = np.asarray(self.sim_imu_history)[:,3:6]
-                #
-                x0_v = self.state_history[1][7:10]
-                x1_v = self.state_history[0][7:10]
+                # get current state and predicted next state
+                simx_0 = self.ocp_solver.get(0, 'x')
+                simx_1 = self.ocp_solver.get(1, 'x')
+                
+                #lin_hist = np.asarray(self.sim_imu_lin_history)[:,0:3]
+                #ang_hist = np.asarray(self.sim_imu_ang_history)[:,0:3]
+                
+                # extract linear and angular velocity
+                simx_0_v = simx_0[7:10]
+                simx_1_v = simx_1[7:10]
+                simx_0_w = simx_0[10:13]
+                simx_1_w = simx_1[10:13]
+                
+                # calculate acceleration from velocity
+                sim_accel_lin = (simx_1_v - simx_0_v) / (self.Tf/self.N_horizon)
+                sim_accel_ang = (simx_1_w - simx_0_w) / (self.Tf/self.N_horizon)
                 
                 
-                x0_w = self.state_history[1][10:13]
-                x1_w = self.state_history[0][10:13]
+                # append calculated acceleration to history ringbuffer
                 
-                t_0 = self.state_history[1][-1] * 1e-9
-                t_1 = self.state_history[0][-1] * 1e-9
-                #
-                sim_accel_lin = (x1_v - x0_v) / (t_1-t_0)
-                sim_accel_ang = (x1_w - x0_w) / (t_1-t_0)
-                #
-                lin_accel_avg = np.mean(np.concatenate((lin_hist,np.array([sim_accel_lin])), axis=0), axis=0)
-                ang_accel_avg = np.mean(np.concatenate((ang_hist,np.array([sim_accel_ang])), axis=0), axis=0)
-                
-                self.sim_imu_history.appendleft(np.concatenate((lin_accel_avg, ang_accel_avg), axis=None))
-                
-                
-                
-                
-                
-                
+                t = self.get_clock().now().nanoseconds
+                self.sim_imu_lin_history.appendleft(np.concatenate((sim_accel_lin, t), axis=None))
+                self.sim_imu_ang_history.appendleft(np.concatenate((sim_accel_ang, t), axis=None))
                 
                 
                 
-                #print("Time diff real, simu: {}".format(self.imu_history[0][-1] * 1e-9 - t_1))
-                #print("Linear accel real: {}".format(self.imu_history[0][0:3]))
-                #print("Linear accel simu: {}\n".format(sim_accel))
+                # now for the real acceleration
+                # extract linear and angular velocity
+                realx_0_v = self.state_history[1][7:10]
+                realx_1_v = self.state_history[0][7:10]
+                realx_0_w = self.state_history[1][10:13]
+                realx_1_w = self.state_history[0][10:13]
                 
+                
+                
+                # get timestamps from states
+                t0 = self.state_history[1][-1] * 1e-9
+                t1 = self.state_history[0][-1] * 1e-9
+                
+                # calculate acceleration from velocity
+                real_accel_lin = (realx_1_v - realx_0_v) / (t1-t0)
+                real_accel_ang = (realx_1_w - realx_0_w) / (t1-t0)
+                
+                
+                # append calculated acceleration to history ringbuffer
+                
+                t = self.get_clock().now().nanoseconds
+                self.linear_accel_real = real_accel_lin
+                self.angular_accel_real = real_accel_ang
+                self.imu_data = np.concatenate((self.linear_accel_real, self.angular_accel_real, t), axis=None)
+                
+                self.imu_history.appendleft(self.imu_data)
+                
+                
+                
+                
+                
+                
+                
+                # publish data to compare: real acceleration vs. simulated acceleration from last iteration
                 # publish data for plotjuggler
                 imu_real = Vector3()
                 imu_sim = Vector3()
@@ -888,12 +953,54 @@ class OffboardControl(Node):
                 imu_real.z = self.imu_history[0][4]
                 
                 #print(self.sim_imu_history[0][0])
-                imu_sim.x = self.sim_imu_history[0][2]
-                imu_sim.y = self.sim_imu_history[0][3]
-                imu_sim.z = self.sim_imu_history[0][4]
+                
+                imu_sim.x = float(self.sim_imu_ang_history[1][0])
+                imu_sim.y = float(self.sim_imu_ang_history[1][1])
+                imu_sim.z = float(self.sim_imu_ang_history[1][2])
                 
                 self.imu_pub_real.publish(imu_real)
                 self.imu_pub_sim.publish(imu_sim)
+                
+                
+                
+                
+                
+                
+                
+                
+                
+                #x0_v = self.state_history[1][7:10]
+                #x1_v = self.state_history[0][7:10]
+                #
+                #
+                #x0_w = self.state_history[1][10:13]
+                #x1_w = self.state_history[0][10:13]
+                #
+                #t_0 = self.state_history[1][-1] * 1e-9
+                #t_1 = self.state_history[0][-1] * 1e-9
+                ##
+                #sim_accel_lin = (x1_v - x0_v) / (t_1-t_0)
+                #sim_accel_ang = (x1_w - x0_w) / (t_1-t_0)
+                ##
+                #lin_accel_avg = np.mean(np.concatenate((lin_hist,np.array([sim_accel_lin])), axis=0), axis=0)
+                #ang_accel_avg = np.mean(np.concatenate((ang_hist,np.array([sim_accel_ang])), axis=0), axis=0)
+                
+                #t = self.get_clock().now().nanoseconds
+                #self.sim_imu_lin_history.appendleft(np.concatenate((lin_accel_avg, t), axis=None))
+                #self.sim_imu_ang_history.appendleft(np.concatenate((ang_accel_avg, t), axis=None))
+                
+                
+                
+                
+                #print('Time between samples: {}'.format(t_1-t_0))
+                
+                
+                
+                #print("Time diff real, simu: {}".format(self.imu_history[0][-1] * 1e-9 - t_1))
+                #print("Linear accel real: {}".format(self.imu_history[0][0:3]))
+                #print("Linear accel simu: {}\n".format(sim_accel))
+                
+                
 #
                 
                 # optinally print position and attitude
