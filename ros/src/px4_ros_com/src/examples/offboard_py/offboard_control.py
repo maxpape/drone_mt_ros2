@@ -196,31 +196,7 @@ def error_function(x, y_ref):
     
     return vertcat(p_err, q_err)
 
-def predict_next_y(x, y, new_x):
-    """
-    Predict the next y for a given x using GPy.
 
-    Parameters:
-    x (numpy array): Input data from the last 20 timesteps.
-    y (numpy array): Output data from the last 20 timesteps.
-    new_x (numpy array): New input for which to predict the output.
-
-    Returns:
-    numpy array: Predicted output for the new input.
-    """
-    # Create a GPRegression model with an RBF kernel
-    
-    kernel = GPy.kern.RBF(input_dim=1, variance=1., lengthscale=1.)
-    model = GPy.models.GPRegression(x, y, kernel)
-
-    # Optimize the model parameters
-    model.optimize()
-
-    # Predict the mean and variance of the output for the new input
-    mean, var = model.predict_noiseless(new_x)
-
-    # Return the predicted mean
-    return mean
 
 
 class OffboardControl(Node):
@@ -341,7 +317,9 @@ class OffboardControl(Node):
         
         
         
-        
+        # gp parameters
+        self.lengthscale = 0.1
+        self.variance = 0.1
         
         
         #state variables
@@ -446,6 +424,27 @@ class OffboardControl(Node):
         ]
         )
         
+        
+        # Declare a parameter with a descriptor for dynamic reconfiguration
+        gp_descriptor = ParameterDescriptor(
+            type=ParameterType.PARAMETER_DOUBLE,  # Specify the type as double
+            description='Desired parameter',     # Description of the parameter
+            additional_constraints='Range: 0.001 to 5',
+            floating_point_range=[FloatingPointRange(
+                from_value=0.001,  # Minimum value
+                to_value=5.0,     # Maximum value
+                step=0.001         # Step size (optional)
+            )]# Constraints (optional)
+        )
+        
+        self.declare_parameters(
+        namespace='',
+        parameters=[
+            ('lengthscale', 0.1, gp_descriptor),
+            ('variance', 0.1, gp_descriptor),
+        ]
+        )
+        
         self.add_on_set_parameters_callback(self.parameter_callback)
         
     def update_current_state(self):
@@ -521,6 +520,10 @@ class OffboardControl(Node):
                 self.pitch_setpoint = param.value
             elif param.name == "yaw":
                 self.yaw_setpoint = param.value
+            elif param.name == "lengthscale":
+                self.lenthscale = param.value
+            elif param.name == "variance":
+                self.variance = param.value
          
                
         self.attitude_setpoint = euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))        
@@ -533,7 +536,35 @@ class OffboardControl(Node):
         return SetParametersResult(successful=True)
 
     
-    
+    def predict_next_y(self, x, y, new_x):
+        """
+        Predict the next y for a given x using GPy.
+
+        Parameters:
+        x (numpy array): Input data from the last 20 timesteps.
+        y (numpy array): Output data from the last 20 timesteps.
+        new_x (numpy array): New input for which to predict the output.
+
+        Returns:
+        numpy array: Predicted output for the new input.
+        """
+        # Create a GPRegression model with an RBF kernel
+        
+        kernel = GPy.kern.RBF(input_dim=1, variance=self.variance, lengthscale=self.lengthscale)
+        model = GPy.models.GPRegression(x, y, kernel)
+
+        #model.rbf.lengthscale.fix()
+        #model.rbf.variance.fix()
+        
+        # Optimize the model parameters
+        model.optimize()
+
+        # Predict the mean and variance of the output for the new input
+        mean, var = model.predict(new_x)
+        print('GP lengthscale: {}'.format(print(model.rbf.lengthscale[0])))
+        print('GP variance: {}\n'.format(print(model.rbf.variance[0])))
+        # Return the predicted mean
+        return mean
        
     def setup_mpc(self):
         
@@ -1031,9 +1062,9 @@ class OffboardControl(Node):
                 sim_hist = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[1:])[:, 0:3])
                 
                 
-                prediction0 = predict_next_y(sim_hist[:,0].reshape(-1,1), real_hist[:,0].reshape(-1,1), np.array([[simx_0[0]]]))
-                prediction1 = predict_next_y(sim_hist[:,1].reshape(-1,1), real_hist[:,1].reshape(-1,1), np.array([[simx_0[1]]]))
-                prediction2 = predict_next_y(sim_hist[:,2].reshape(-1,1), real_hist[:,2].reshape(-1,1), np.array([[simx_0[2]]]))
+                prediction0 = self.predict_next_y(sim_hist[:,0].reshape(-1,1), real_hist[:,0].reshape(-1,1), np.array([[simx_0[0]]]))
+                prediction1 = self.predict_next_y(sim_hist[:,1].reshape(-1,1), real_hist[:,1].reshape(-1,1), np.array([[simx_0[1]]]))
+                prediction2 = self.predict_next_y(sim_hist[:,2].reshape(-1,1), real_hist[:,2].reshape(-1,1), np.array([[simx_0[2]]]))
                 
                 
                 
