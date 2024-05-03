@@ -209,14 +209,15 @@ def predict_next_y(x, y, new_x):
     numpy array: Predicted output for the new input.
     """
     # Create a GPRegression model with an RBF kernel
-    kernel = GPy.kern.RBF(input_dim=x.shape[1], variance=1., lengthscale=1.)
+    
+    kernel = GPy.kern.RBF(input_dim=1, variance=1., lengthscale=1.)
     model = GPy.models.GPRegression(x, y, kernel)
 
     # Optimize the model parameters
     model.optimize()
 
     # Predict the mean and variance of the output for the new input
-    mean, var = model.predict(new_x)
+    mean, var = model.predict_noiseless(new_x)
 
     # Return the predicted mean
     return mean
@@ -251,6 +252,8 @@ class OffboardControl(Node):
             Vector3, '/imu_data_real', qos_profile)
         self.imu_pub_sim = self.create_publisher(
             Vector3, '/imu_data_sim', qos_profile)
+        self.imu_pub_gp = self.create_publisher(
+            Vector3, '/imu_data_gp', qos_profile)
 
         # Create subscribers
         self.vehicle_status_subscriber = self.create_subscription(
@@ -319,18 +322,20 @@ class OffboardControl(Node):
                             self.c_tau])
         
         # imu data
+        history_length = 10
+        
         self.linear_accel_real = np.zeros(3)
         self.angular_accel_real = np.zeros(3)
         self.imu_timestamp = 0.0
         self.imu_data = np.concatenate((self.linear_accel_real, self.angular_accel_real, self.get_clock().now().nanoseconds), axis=None)
-        self.imu_history = collections.deque(maxlen=20)
+        self.imu_history = collections.deque(maxlen=history_length)
         self.imu_history.appendleft(self.imu_data)
         
         
         self.linear_accel_sim = np.zeros(3)
         self.angular_accel_sim = np.zeros(3)
-        self.sim_imu_lin_history = collections.deque(maxlen=20)
-        self.sim_imu_ang_history = collections.deque(maxlen=20)
+        self.sim_imu_lin_history = collections.deque(maxlen=history_length)
+        self.sim_imu_ang_history = collections.deque(maxlen=history_length)
         self.sim_imu_lin_history.appendleft(np.array([0,0,0,0]))
         self.sim_imu_ang_history.appendleft(np.array([0,0,0,0]))
         
@@ -1022,13 +1027,13 @@ class OffboardControl(Node):
                 
                 
                 # prediction of linear acceleration error
-                real_hist = np.asarray(list(self.imu_history))[:, 0:3]
-                sim_hist = np.asarray(list(self.sim_imu_lin_history))[:, 0:3]
+                real_hist = np.nan_to_num(np.asarray(list(self.imu_history)[:-1])[:, 0:3])
+                sim_hist = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[1:])[:, 0:3])
                 
                 
-                
-                
-                diff = real_hist - sim_hist
+                prediction0 = predict_next_y(sim_hist[:,0].reshape(-1,1), real_hist[:,0].reshape(-1,1), np.array([[simx_0[0]]]))
+                prediction1 = predict_next_y(sim_hist[:,1].reshape(-1,1), real_hist[:,1].reshape(-1,1), np.array([[simx_0[1]]]))
+                prediction2 = predict_next_y(sim_hist[:,2].reshape(-1,1), real_hist[:,2].reshape(-1,1), np.array([[simx_0[2]]]))
                 
                 
                 
@@ -1036,6 +1041,7 @@ class OffboardControl(Node):
                 # publish data for plotjuggler
                 imu_real = Vector3()
                 imu_sim = Vector3()
+                imu_gp = Vector3()
                 #
                 imu_real.x = self.imu_history[0][0]
                 imu_real.y = self.imu_history[0][1]
@@ -1043,12 +1049,16 @@ class OffboardControl(Node):
                 
                 #print(self.sim_imu_history[0][0])
                 
-                imu_sim.x = float(self.sim_imu_lin_history[1][0]+diff[0][0])
-                imu_sim.y = float(self.sim_imu_lin_history[1][1]+diff[0][1])
-                imu_sim.z = float(self.sim_imu_lin_history[1][2]+diff[0][2])
+                imu_sim.x = float(self.sim_imu_lin_history[1][0])
+                imu_sim.y = float(self.sim_imu_lin_history[1][1])
+                imu_sim.z = float(self.sim_imu_lin_history[1][2])
+                imu_gp.x = float(prediction0)
+                imu_gp.y = float(prediction1)
+                imu_gp.z = float(prediction2)
                 
                 self.imu_pub_real.publish(imu_real)
                 self.imu_pub_sim.publish(imu_sim)
+                self.imu_pub_gp.publish(imu_gp)
                 
                 
                 
