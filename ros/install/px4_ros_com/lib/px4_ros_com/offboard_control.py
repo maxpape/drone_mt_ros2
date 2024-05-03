@@ -1069,13 +1069,13 @@ class OffboardControl(Node):
                 error = real_hist - sim_hist
                 
                 
-                prediction0 = self.predict_next_y(sim_hist[:,0].reshape(-1,1), real_hist[:,0].reshape(-1,1), np.array([[simx_0_v[0]]]))
-                prediction1 = self.predict_next_y(sim_hist[:,1].reshape(-1,1), real_hist[:,1].reshape(-1,1), np.array([[simx_0_v[1]]]))
-                prediction2 = self.predict_next_y(sim_hist[:,2].reshape(-1,1), real_hist[:,2].reshape(-1,1), np.array([[simx_0_v[2]]]))
+                #prediction0 = self.predict_next_y(sim_hist[:,0].reshape(-1,1), real_hist[:,0].reshape(-1,1), np.array([[simx_0_v[0]]]))
+                #prediction1 = self.predict_next_y(sim_hist[:,1].reshape(-1,1), real_hist[:,1].reshape(-1,1), np.array([[simx_0_v[1]]]))
+                #prediction2 = self.predict_next_y(sim_hist[:,2].reshape(-1,1), real_hist[:,2].reshape(-1,1), np.array([[simx_0_v[2]]]))
                 
-                #prediction0 = self.predict_next_y(sim_hist[:,0].reshape(-1,1), error[:,0].reshape(-1,1), np.array([[simx_0_v[0]]]))
-                #prediction1 = self.predict_next_y(sim_hist[:,1].reshape(-1,1), error[:,1].reshape(-1,1), np.array([[simx_0_v[1]]]))
-                #prediction2 = self.predict_next_y(sim_hist[:,2].reshape(-1,1), error[:,2].reshape(-1,1), np.array([[simx_0_v[2]]]))
+                prediction0 = self.predict_next_y(sim_hist[:,0].reshape(-1,1), error[:,0].reshape(-1,1), np.array([[simx_0_v[0]]]))
+                prediction1 = self.predict_next_y(sim_hist[:,1].reshape(-1,1), error[:,1].reshape(-1,1), np.array([[simx_0_v[1]]]))
+                prediction2 = self.predict_next_y(sim_hist[:,2].reshape(-1,1), error[:,2].reshape(-1,1), np.array([[simx_0_v[2]]]))
                 
                 
                 
@@ -1094,9 +1094,9 @@ class OffboardControl(Node):
                 imu_sim.x = float(self.sim_imu_lin_history[1][0])
                 imu_sim.y = float(self.sim_imu_lin_history[1][1])
                 imu_sim.z = float(self.sim_imu_lin_history[1][2])
-                imu_gp.x = float(prediction0)
-                imu_gp.y = float(prediction1)
-                imu_gp.z = float(prediction2)
+                imu_gp.x = float(self.sim_imu_lin_history[1][0]) + float(prediction0)*0.8
+                imu_gp.y = float(self.sim_imu_lin_history[1][1]) + float(prediction1)*0.8
+                imu_gp.z = float(self.sim_imu_lin_history[1][2]) + float(prediction2)
                 
                 self.imu_pub_real.publish(imu_real)
                 self.imu_pub_sim.publish(imu_sim)
