@@ -298,7 +298,7 @@ class OffboardControl(Node):
                             self.c_tau])
         
         # imu data
-        history_length = 10
+        history_length = 15
         
         self.linear_accel_real = np.zeros(3)
         self.angular_accel_real = np.zeros(3)
@@ -432,7 +432,7 @@ class OffboardControl(Node):
             additional_constraints='Range: 0.001 to 5',
             floating_point_range=[FloatingPointRange(
                 from_value=0.001,  # Minimum value
-                to_value=5.0,     # Maximum value
+                to_value=100.0,     # Maximum value
                 step=0.001         # Step size (optional)
             )]# Constraints (optional)
         )
@@ -440,7 +440,7 @@ class OffboardControl(Node):
         self.declare_parameters(
         namespace='',
         parameters=[
-            ('lengthscale', 0.1, gp_descriptor),
+            ('lengthscale', 5.0, gp_descriptor),
             ('variance', 0.1, gp_descriptor),
         ]
         )
@@ -561,8 +561,8 @@ class OffboardControl(Node):
 
         # Predict the mean and variance of the output for the new input
         mean, var = model.predict(new_x)
-        print('GP lengthscale: {}'.format(print(model.rbf.lengthscale[0])))
-        print('GP variance: {}\n'.format(print(model.rbf.variance[0])))
+        #print('GP lengthscale: {}'.format(print(model.rbf.lengthscale[0])))
+        #print('GP variance: {}\n'.format(print(model.rbf.variance[0])))
         # Return the predicted mean
         return mean
        
@@ -963,10 +963,13 @@ class OffboardControl(Node):
                 # get timestamps from states
                 t0 = self.state_history[1][-1] * 1e-6
                 t1 = self.state_history[0][-1] * 1e-6
+                dt = (t1-t0)
+                if dt == 0:
+                    dt = self.Tf/self.N_horizon
                 
                 # calculate acceleration from velocity
-                real_accel_lin = (realx_1_v - realx_0_v) / (t1-t0)
-                real_accel_ang = (realx_1_w - realx_0_w) / (t1-t0)
+                real_accel_lin = (realx_1_v - realx_0_v) / (dt)
+                real_accel_ang = (realx_1_w - realx_0_w) / (dt)
                 
                 
                 # append calculated acceleration to history ringbuffer
@@ -1043,8 +1046,11 @@ class OffboardControl(Node):
                 t1 = self.state_history[0][-1] * 1e-6
                 
                 # calculate acceleration from velocity
-                real_accel_lin = (realx_1_v - realx_0_v) / (t1-t0)
-                real_accel_ang = (realx_1_w - realx_0_w) / (t1-t0)
+                dt = (t1-t0)
+                #if dt == 0:
+                #    dt = self.Tf/self.N_horizon
+                real_accel_lin = (realx_1_v - realx_0_v) / (dt)
+                real_accel_ang = (realx_1_w - realx_0_w) / (dt)
                 
                 
                 # append calculated acceleration to history ringbuffer
@@ -1058,13 +1064,18 @@ class OffboardControl(Node):
                 
                 
                 # prediction of linear acceleration error
-                real_hist = np.nan_to_num(np.asarray(list(self.imu_history)[:-1])[:, 0:3])
-                sim_hist = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[1:])[:, 0:3])
+                real_hist = np.nan_to_num(np.asarray(list(self.imu_history)[:-1])[:, 0:3], nan=0)
+                sim_hist = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[1:])[:, 0:3], nan=0)
+                error = real_hist - sim_hist
                 
                 
-                prediction0 = self.predict_next_y(sim_hist[:,0].reshape(-1,1), real_hist[:,0].reshape(-1,1), np.array([[simx_0[0]]]))
-                prediction1 = self.predict_next_y(sim_hist[:,1].reshape(-1,1), real_hist[:,1].reshape(-1,1), np.array([[simx_0[1]]]))
-                prediction2 = self.predict_next_y(sim_hist[:,2].reshape(-1,1), real_hist[:,2].reshape(-1,1), np.array([[simx_0[2]]]))
+                prediction0 = self.predict_next_y(sim_hist[:,0].reshape(-1,1), real_hist[:,0].reshape(-1,1), np.array([[simx_0_v[0]]]))
+                prediction1 = self.predict_next_y(sim_hist[:,1].reshape(-1,1), real_hist[:,1].reshape(-1,1), np.array([[simx_0_v[1]]]))
+                prediction2 = self.predict_next_y(sim_hist[:,2].reshape(-1,1), real_hist[:,2].reshape(-1,1), np.array([[simx_0_v[2]]]))
+                
+                #prediction0 = self.predict_next_y(sim_hist[:,0].reshape(-1,1), error[:,0].reshape(-1,1), np.array([[simx_0_v[0]]]))
+                #prediction1 = self.predict_next_y(sim_hist[:,1].reshape(-1,1), error[:,1].reshape(-1,1), np.array([[simx_0_v[1]]]))
+                #prediction2 = self.predict_next_y(sim_hist[:,2].reshape(-1,1), error[:,2].reshape(-1,1), np.array([[simx_0_v[2]]]))
                 
                 
                 
