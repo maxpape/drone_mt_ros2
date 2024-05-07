@@ -12,6 +12,7 @@ import GPy
 from casadi import SX, vertcat, Function, sqrt, norm_2, dot, cross, atan2, if_else
 import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
+from scipy.interpolate import splev, splprep
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import OffboardControlMode, VehicleCommand, VehicleStatus, ActuatorMotors, VehicleOdometry, ActuatorOutputs, SensorCombined, VehicleLocalPosition
@@ -24,6 +25,34 @@ from drone_model import export_drone_ode_model
 np.set_printoptions(precision=4)
 np.set_printoptions(suppress=True)
 
+
+def generate_trajectory(points, d_points):
+    """generates a smooth trajectory from an array of given points
+
+    Args:
+        points (np.ndarray): input points with arbitrary distance
+        d_points (float): maximum distance of output points
+
+    Returns:
+        np.ndarray: array of points with maximum distance of d_points
+    """
+    # Calculate the total distance of the trajectory
+    total_distance = np.sum(np.linalg.norm(np.diff(points, axis=0), axis=1))
+
+    # Calculate the number of points needed for the trajectory
+    n_points = int(total_distance / d_points) + 1
+
+    # Prepare the input for the interpolation function
+    #t = np.arange(len(points))
+    points = points.T
+
+    # Perform the interpolation
+    tck, u = splprep(points, s=0)
+    u_new = np.linspace(u.min(), u.max(), n_points)
+    x_new, y_new, z_new = splev(u_new, tck)
+
+    # Return the interpolated points
+    return np.array([x_new, y_new, z_new]).T
 
 def euler_to_quaternion_numpy(rpy):
     """
