@@ -9,6 +9,7 @@ import time
 import collections
 import pandas as pd
 import GPy
+import functions
 from casadi import SX, vertcat, Function, sqrt, norm_2, dot, cross, atan2, if_else
 import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
@@ -26,180 +27,59 @@ np.set_printoptions(precision=4)
 np.set_printoptions(suppress=True)
 
 
-def generate_trajectory(points, d_points):
-    """generates a smooth trajectory from an array of given points
+#def generate_trajectory(points, d_points):
+#    """generates a smooth trajectory from an array of given points
+#
+#    Args:
+#        points (np.ndarray): input points with arbitrary distance
+#        d_points (float): maximum distance of output points
+#
+#    Returns:
+#        np.ndarray: array of points with maximum distance of d_points
+#    """
+#    # Calculate the total distance of the trajectory
+#    total_distance = np.sum(np.linalg.norm(np.diff(points, axis=0), axis=1))
+#
+#    # Calculate the number of points needed for the trajectory
+#    n_points = int(total_distance / d_points) + 1
+#
+#    # Prepare the input for the interpolation function
+#    #t = np.arange(len(points))
+#    points = points.T
+#
+#    # Perform the interpolation
+#    tck, u = splprep(points, s=0)
+#    u_new = np.linspace(u.min(), u.max(), n_points)
+#    x_new, y_new, z_new = splev(u_new, tck)
+#
+#    # Return the interpolated points
+#    return np.array([x_new, y_new, z_new]).T
 
-    Args:
-        points (np.ndarray): input points with arbitrary distance
-        d_points (float): maximum distance of output points
 
-    Returns:
-        np.ndarray: array of points with maximum distance of d_points
-    """
-    # Calculate the total distance of the trajectory
-    total_distance = np.sum(np.linalg.norm(np.diff(points, axis=0), axis=1))
 
-    # Calculate the number of points needed for the trajectory
-    n_points = int(total_distance / d_points) + 1
-
-    # Prepare the input for the interpolation function
-    #t = np.arange(len(points))
-    points = points.T
-
-    # Perform the interpolation
-    tck, u = splprep(points, s=0)
-    u_new = np.linspace(u.min(), u.max(), n_points)
-    x_new, y_new, z_new = splev(u_new, tck)
-
-    # Return the interpolated points
-    return np.array([x_new, y_new, z_new]).T
-
-def euler_to_quaternion_numpy(rpy):
-    """
-    Convert Euler angles to quaternion.
-
-    Parameters:
-    rpy : np.ndarray roll, pitch, yaw
-
-    Returns:
-    np.ndarray
-        Quaternion [w, x, y, z] representing the rotation.
-    """
-    roll, pitch, yaw = rpy
-    # Create a rotation object from Euler angles
-    r = R.from_euler('xyz', [roll, pitch, yaw], degrees=True)
+def generate_trajectory(points, d_points, d_yaw):
+    trajectory = []
+    for i in range(len(points) - 1):
+        vector = points[i + 1][:3] - points[i][:3]
+        distance = np.linalg.norm(vector)
+        yaw_diff = points[i + 1][3] - points[i][3]
+        if yaw_diff > 180:
+            yaw_diff -= 360
+        elif yaw_diff < -180:
+            yaw_diff += 360
+        num_points = max(int(np.ceil(distance / d_points)), int(np.ceil(np.abs(yaw_diff) / d_yaw)))
+        for j in range(0, num_points + 1):
+            point = points[i][:3] + j * vector / num_points
+            yaw = points[i][3] + j * yaw_diff / num_points
+            if yaw > 360:
+                yaw -= 360
+            elif yaw < -360:
+                yaw += 360
+            trajectory.append(np.append(point, yaw))
     
-    # Convert the rotation object to quaternion (scalar-last format)
-    q = r.as_quat()
-    
-    
-    return np.array([q[3], q[0], q[1], q[2]] ) / np.linalg.norm(q)
-
-def quaternion_to_euler_numpy(q):
-    """Convert quaternion to euler angles
-
-    Args:
-        q (np.ndarray): Input quaternion 
-
-    Returns:
-        no.ndarray: Array containg orientation in euler angles [roll, pitch, yaw]
-    """
-    quat = np.zeros(4)
-    quat[0], quat[1], quat[2], quat[3] = q[1], q[2], q[3], q[0]
-
-    rotation = R.from_quat(quat)
-
-    return rotation.as_euler("xyz", degrees=True)
-
-def quaternion_to_euler_casadi(q):
-        """
-        Convert a quaternion into euler angles (roll, pitch, yaw)
-        roll is rotation around x-axis, pitch is rotation around y-axis,
-        and yaw is rotation around z-axis.
-        """
-        quat = SX.sym("quat", 4)
-        quat[0], quat[1], quat[2], quat[3] = q[1], q[2], q[3], q[0]
-        rotation = sc.Rotation.from_quat(quat)
-        
-        
-        return rotation.as_euler('xyz')
+    return np.array(trajectory)
 
 
-
-def quaternion_inverse_numpy(q):
-    """Invert a quaternion given as a numpy expression
-
-    Args:
-        q (np.ndarray): input quaternion
-
-    Returns:
-        np.ndarray: inverted quaternion
-    """
-
-    return np.array([1, -1, -1, -1]) * q / (np.linalg.norm(q) ** 2)
-
-def quaternion_product_numpy(q, p):
-    """Multiply two quaternions given as numpy arrays
-
-    Args:
-        q (np.ndarray): input quaternion q
-        p (np.ndarray): input quaternion p
-
-    Returns:
-        np.ndarray: output quaternion
-    """
-    s1 = q[0]
-    v1 = q[1:4]
-    s2 = p[0]
-    v2 = p[1:4]
-    s = s1 * s2 - np.dot(v1, v2)
-    v = s1 * v2 + s2 * v1 + np.cross(v1, v2)
-    return np.concatenate((s, v), axis=None)
-
-def quat_rotation_numpy(v, q):
-    """Rotates a vector v by the quaternion q
-
-    Args:
-        v (np.ndarray): input vector
-        q (np.ndarray): input quaternion
-
-    Returns:
-        np.ndarray: rotated vector
-    """
-
-    p = np.concatenate((0.0, v), axis=None)
-    p_rotated = quaternion_product_numpy(
-        quaternion_product_numpy(q, p), quaternion_inverse_numpy(q)
-    )
-    return p_rotated[1:4]
-
-
-def multiply_quaternions_casadi(q, p):
-    """Multiply two quaternions given as casadi expressions
-
-    Args:
-        q (casadi SX): quaternion 1
-        p (casadi SX): quaternion 2
-
-    Returns:
-        casadi SX: resulting quaternion
-    """
-    s1 = q[0]
-    v1 = q[1:4]
-    s2 = p[0]
-    v2 = p[1:4]
-    s = s1 * s2 - dot(v1, v2)
-    v = s1 * v2 + s2 * v1 + cross(v1, v2)
-    return vertcat(s, v)
-
-def quaternion_inverse_casadi(q):
-    """Invert a quaternion given as a casadi expression
-
-    Args:
-        q (casadi SX): input quaternion
-
-    Returns:
-        casadi SX: inverted quaternion
-    """
-
-    return SX([1, -1, -1, -1]) * q / (norm_2(q)**2)
-
-def quaternion_error(q_ref, q):
-    """Calculate the quaternion error between a reference quaternion q_ref and an origin quaternion q
-
-    Args:
-        q_ref (casadi SX): reference quaternion
-        q (casadi SX): origin quaternion
-
-    Returns:
-        casadi SX: elements x, y, and z from error quaternion (w neglected, since norm(unit quaternion)=1; not suitable for error calculation)
-    """
-    q_error = multiply_quaternions_casadi(q_ref, quaternion_inverse_casadi(q))
-
-    if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
-    
-
-    return q_error[1:4]
 
     
 
@@ -220,7 +100,7 @@ def error_function(x, y_ref):
     
     
     p_err = x[0:3] - p_ref
-    q_err = quaternion_error(x[3:7], q_ref)[2]
+    q_err = functions.quaternion_error(x[3:7], q_ref)[2]
     
     
     return vertcat(p_err, q_err)
@@ -376,6 +256,7 @@ class OffboardControl(Node):
         self.yaw_setpoint = 0
         self.angular_velocity_setpoint = np.zeros(3)
         self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
+        self.setpoints = [self.setpoint]
         self.update_setpoint()
         
         
@@ -515,15 +396,18 @@ class OffboardControl(Node):
             self.angular_velocity_setpoint = w
         if "roll" in fields:
             self.roll_setpoint = roll
-            self.attitude_setpoint = euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
+            self.attitude_setpoint = functions.euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
         if "pitch" in fields:
             self.pitch_setpoint = pitch
-            self.attitude_setpoint = euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
+            self.attitude_setpoint = functions.euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
         if "yaw" in fields:
             self.yaw_setpoint = yaw
-            self.attitude_setpoint = euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
+            self.attitude_setpoint = functions.euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
         
         self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
+        yaw = functions.quaternion_to_euler_numpy(self.setpoint[3:7])[2]
+        self.setpoints.append(np.concatenate((self.setpoint[0:3], yaw), axis=None))
+        
     
     def set_mpc_target_pos(self):
              
@@ -555,7 +439,7 @@ class OffboardControl(Node):
                 self.variance = param.value
          
                
-        self.attitude_setpoint = euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))        
+        self.attitude_setpoint = functions.euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))        
         
         self.update_setpoint()
         print('New target setpoint: {}'.format(self.setpoint))
