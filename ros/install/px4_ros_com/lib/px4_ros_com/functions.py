@@ -135,7 +135,56 @@ def quaternion_inverse_casadi(q):
 
     return SX([1, -1, -1, -1]) * q / (norm_2(q)**2)
 
-def quaternion_error(q_ref, q):
+def quaternion_product_casadi(q, p):
+    """Multiply two quaternions given as casadi espressions
+
+    Args:
+        q (casadi SX): input quaternion q
+        p (casadi SX): input quaternion p
+
+    Returns:
+        casadi SX: output quaternion
+    """
+    s1 = q[0]
+    v1 = q[1:4]
+    s2 = p[0]
+    v2 = p[1:4]
+    s = s1 * s2 - dot(v1, v2)
+    v = s1 * v2 + s2 * v1 + cross(v1, v2)
+    return vertcat(s, v)
+
+def quat_derivative_casadi(q, w):
+    """Calculates the quaternion derivative
+
+    Args:
+        q (casadi SX): input quaternion
+        w (casadi SX): angular velocity
+
+    Returns:
+        casadi SX: quaternion derivative
+    """
+
+    return quaternion_product_casadi(q, vertcat(SX(0), w)) / 2
+
+
+def quat_rotation_casadi(v, q):
+    """Rotates a vector v by the quaternion q
+
+    Args:
+        v (casadi SX): input vector
+        q (casadi SX): input quaternion
+
+    Returns:
+        _type_: _description_
+    """
+
+    p = vertcat(SX(0), v)
+    p_rotated = quaternion_product_casadi(
+        quaternion_product_casadi(q, p), quaternion_inverse_casadi(q)
+    )
+    return p_rotated[1:4]
+
+def quaternion_error_casadi(q_ref, q):
     """Calculate the quaternion error between a reference quaternion q_ref and an origin quaternion q
 
     Args:
@@ -151,3 +200,24 @@ def quaternion_error(q_ref, q):
     
 
     return q_error[1:4]
+
+
+def quaternion_error_numpy(q_ref, q):
+    """Calculate the quaternion error between a reference quaternion q_ref and an origin quaternion q
+
+    Args:
+        q_ref (casadi SX): reference quaternion
+        q (casadi SX): origin quaternion
+
+    Returns:
+        casadi SX: elements x, y, and z from error quaternion (w neglected, since norm(unit quaternion)=1; not suitable for error calculation)
+    """
+    q_error = quaternion_product_numpy(q_ref, quaternion_inverse_numpy(q))
+
+    if q_error[0] >= 0:
+        q_error = np.array([1, -1, -1, -1])*q_error
+    else:
+        q_error = np.array([1, 1, 1, 1])*q_error
+    
+
+    return q_error

@@ -27,33 +27,22 @@ np.set_printoptions(precision=4)
 np.set_printoptions(suppress=True)
 
 
-#def generate_trajectory(points, d_points):
-#    """generates a smooth trajectory from an array of given points
-#
-#    Args:
-#        points (np.ndarray): input points with arbitrary distance
-#        d_points (float): maximum distance of output points
-#
-#    Returns:
-#        np.ndarray: array of points with maximum distance of d_points
-#    """
-#    # Calculate the total distance of the trajectory
-#    total_distance = np.sum(np.linalg.norm(np.diff(points, axis=0), axis=1))
-#
-#    # Calculate the number of points needed for the trajectory
-#    n_points = int(total_distance / d_points) + 1
-#
-#    # Prepare the input for the interpolation function
-#    #t = np.arange(len(points))
-#    points = points.T
-#
-#    # Perform the interpolation
-#    tck, u = splprep(points, s=0)
-#    u_new = np.linspace(u.min(), u.max(), n_points)
-#    x_new, y_new, z_new = splev(u_new, tck)
-#
-#    # Return the interpolated points
-#    return np.array([x_new, y_new, z_new]).T
+counter = 0
+
+def is_setpoint_reached(setpoint, position, attitude, threshold_pos, threshold_att):
+    setpoint_position = setpoint[0:3]
+    setpoint_attitude = setpoint[3:7]
+    
+    distance = np.linalg.norm(setpoint_position - position)
+    
+    attitude_error = functions.quaternion_error_numpy(setpoint_attitude, attitude)
+    yaw_error = np.abs(functions.quaternion_to_euler_numpy(attitude_error)[2])
+    
+    #if (distance <= threshold_pos) and (yaw_error <= threshold_att):
+    if (distance <= threshold_pos):
+        return True
+    else:
+        return False
 
 
 
@@ -62,22 +51,25 @@ def generate_trajectory(points, d_points, d_yaw):
     for i in range(len(points) - 1):
         vector = points[i + 1][:3] - points[i][:3]
         distance = np.linalg.norm(vector)
-        yaw_diff = points[i + 1][3] - points[i][3]
+        yaw_1 = functions.quaternion_to_euler_numpy(points[i + 1][3:])[2]
+        yaw_0 = functions.quaternion_to_euler_numpy(points[i][3:])[2]
+        yaw_diff = yaw_1 - yaw_0 
         if yaw_diff > 180:
             yaw_diff -= 360
         elif yaw_diff < -180:
             yaw_diff += 360
         num_points = max(int(np.ceil(distance / d_points)), int(np.ceil(np.abs(yaw_diff) / d_yaw)))
-        for j in range(0, num_points + 1):
+        for j in range(0, num_points ):
             point = points[i][:3] + j * vector / num_points
             yaw = points[i][3] + j * yaw_diff / num_points
             if yaw > 360:
                 yaw -= 360
             elif yaw < -360:
                 yaw += 360
-            trajectory.append(np.append(point, yaw))
-    
-    return np.array(trajectory)
+            
+            trajectory.append(np.concatenate((point, functions.euler_to_quaternion_numpy(np.array([0,0,yaw]))), axis=None))
+    trajectory.append(points[-1])
+    return np.asarray(trajectory)
 
 
 
@@ -100,7 +92,7 @@ def error_function(x, y_ref):
     
     
     p_err = x[0:3] - p_ref
-    q_err = functions.quaternion_error(x[3:7], q_ref)[2]
+    q_err = functions.quaternion_error_casadi(x[3:7], q_ref)[2]
     
     
     return vertcat(p_err, q_err)
@@ -152,7 +144,7 @@ class OffboardControl(Node):
         self.vehicle_local_position_subscriber = self.create_subscription(
             VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
 
-
+        self.counter = 0
 
         # Initialize variables
         self.offboard_setpoint_counter = 0
@@ -168,7 +160,7 @@ class OffboardControl(Node):
         self.Tmin = 1
         self.vmax = 3
         self.angular_vmax = 1.5
-        self.max_angle_q = 0.2
+        self.max_angle_q = 0.25
         self.max_motor_rpm = 1100
         
         # parameters for system model
@@ -248,15 +240,16 @@ class OffboardControl(Node):
         self.state_history_sim.appendleft(self.current_state)
         
         #setpoint variables
-        self.position_setpoint = np.array([0,0,0])
+        self.position_setpoint = np.array([0,0,2])
         self.velocity_setpoint = np.zeros(3)
         self.attitude_setpoint = np.asarray([np.sqrt(2)/2, 0, 0, -np.sqrt(2)/2])
         self.roll_setpoint = 0
         self.pitch_setpoint = 0
         self.yaw_setpoint = 0
         self.angular_velocity_setpoint = np.zeros(3)
-        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
-        self.setpoints = [self.setpoint]
+        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint), axis=None)
+        self.setpoints = []
+        self.trajectory = []
         self.update_setpoint()
         
         
@@ -362,12 +355,7 @@ class OffboardControl(Node):
         """
         
         self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, self.state_timestamp), axis=None)
-        
-        
-        
-        
-        
-        
+
         self.imu_data = np.concatenate((self.linear_accel_real, self.angular_accel_real, self.imu_timestamp), axis=None)
         
         self.state_history.appendleft(self.current_state)
@@ -404,17 +392,51 @@ class OffboardControl(Node):
             self.yaw_setpoint = yaw
             self.attitude_setpoint = functions.euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
         
-        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint, self.velocity_setpoint, self.angular_velocity_setpoint), axis=None)
-        yaw = functions.quaternion_to_euler_numpy(self.setpoint[3:7])[2]
-        self.setpoints.append(np.concatenate((self.setpoint[0:3], yaw), axis=None))
+        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint), axis=None)
+        self.setpoints.append(self.setpoint)
         
     
     def set_mpc_target_pos(self):
-             
-        parameters = np.concatenate((self.params, self.setpoint), axis=None)
-        for j in range(self.N_horizon):
+        self.counter += 1
+        
+        dist_points = self.vmax/self.N_horizon
+        
+        if (len(self.setpoints) > 1):
+            
+            for i in range(len(self.setpoints)):
+                
+                reached = is_setpoint_reached(self.setpoints[i], self.current_state[0:3], self.attitude, dist_points*2.5, 11)
+                if reached:
+                    self.setpoints = self.setpoints[i+1:]
+                    
+                    break
+        
+        
+        start = np.concatenate((self.position, self.attitude), axis=None)
+        self.trajectory = generate_trajectory(np.vstack((start, self.setpoints)), dist_points*0.9, 10)
+        
+        
+        if len(self.trajectory) < self.N_horizon:
+            
+            last_elem = self.trajectory[-1]
+            dim = self.N_horizon - len(self.trajectory)
+            
+            filler = np.full((dim,7), last_elem)
+            
+            self.trajectory = np.vstack((self.trajectory , filler))
+        
+        if len(self.trajectory) > self.N_horizon:
+            self.trajectory = self.trajectory[0:self.N_horizon]
+            
+        
+        if self.counter == 10:
+            print(self.current_state[0:3])
+            self.counter = 0
+        for j in range(self.N_horizon-1):
+            parameters = np.concatenate((self.params, self.trajectory[j]), axis=None)
             self.ocp_solver.set(j, "p", parameters)
         
+        parameters = np.concatenate((self.params, self.trajectory[self.N_horizon-1]), axis=None)
         self.ocp_solver.set(self.N_horizon, "p", parameters)  
     
     
@@ -493,13 +515,13 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([10,10,100])
+        Q_p= np.diag([5,5,200])*10
         Q_q= np.eye(1)*100
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
         R_U = np.eye(4)
         
-        Q_p_final = np.diag([10,10,100])
+        Q_p_final = np.diag([20,20,200])*50
         Q_q_final = np.eye(1)*100
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
@@ -820,7 +842,7 @@ class OffboardControl(Node):
         self.publish_offboard_control_heartbeat_signal()
         
         self.update_current_state()
-        
+         
         # wait until enough heartbeat signals have been sent
         if self.offboard_setpoint_counter == 10:
             self.engage_offboard_mode()
@@ -901,9 +923,9 @@ class OffboardControl(Node):
 
             elif self.offboard_setpoint_counter == 100:
                 print('starting control')
-                self.set_mpc_target_pos()   
+                  
             else:      
-                
+                self.set_mpc_target_pos()
                 U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
 
                 command = np.asarray([self.map_thrust(u) for u in U])

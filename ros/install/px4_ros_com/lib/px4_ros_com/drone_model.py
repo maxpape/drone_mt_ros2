@@ -1,70 +1,15 @@
 from acados_template import AcadosModel
 from casadi import SX, vertcat, horzcat, sum1, inv, cross, mtimes, dot, norm_2
 import spatial_casadi as sc
+import functions
 
 
-def quaternion_inverse_casadi(q):
-    """Invert a quaternion given as a casadi expression
-
-    Args:
-        q (casadi SX): input quaternion
-
-    Returns:
-        casadi SX: inverted quaternion
-    """
-
-    return SX([1, -1, -1, -1]) * q / (norm_2(q) ** 2)
 
 
-def quaternion_product_casadi(q, p):
-    """Multiply two quaternions given as casadi espressions
-
-    Args:
-        q (casadi SX): input quaternion q
-        p (casadi SX): input quaternion p
-
-    Returns:
-        casadi SX: output quaternion
-    """
-    s1 = q[0]
-    v1 = q[1:4]
-    s2 = p[0]
-    v2 = p[1:4]
-    s = s1 * s2 - dot(v1, v2)
-    v = s1 * v2 + s2 * v1 + cross(v1, v2)
-    return vertcat(s, v)
 
 
-def quat_derivative_casadi(q, w):
-    """Calculates the quaternion derivative
-
-    Args:
-        q (casadi SX): input quaternion
-        w (casadi SX): angular velocity
-
-    Returns:
-        casadi SX: quaternion derivative
-    """
-
-    return quaternion_product_casadi(q, vertcat(SX(0), w)) / 2
 
 
-def quat_rotation_casadi(v, q):
-    """Rotates a vector v by the quaternion q
-
-    Args:
-        v (casadi SX): input vector
-        q (casadi SX): input quaternion
-
-    Returns:
-        _type_: _description_
-    """
-
-    p = vertcat(SX(0), v)
-    p_rotated = quaternion_product_casadi(
-        quaternion_product_casadi(q, p), quaternion_inverse_casadi(q)
-    )
-    return p_rotated[1:4]
 
 
 def export_drone_ode_model() -> AcadosModel:
@@ -89,8 +34,7 @@ def export_drone_ode_model() -> AcadosModel:
     c_tau = SX.sym("c_tau")  # rotor drag torque constant
     p_ref = SX.sym("p_ref", 3)  # reference variables for setpoint
     q_ref = SX.sym("q_ref", 4)
-    v_ref = SX.sym("v_ref", 3)
-    w_ref = SX.sym("w_ref", 3)
+    
 
     # combine parameters to single vector
     params = vertcat(
@@ -109,9 +53,7 @@ def export_drone_ode_model() -> AcadosModel:
         d_y3,
         c_tau,
         p_ref,
-        q_ref,
-        v_ref,
-        w_ref,
+        q_ref
     )
 
     # Define state variables
@@ -150,8 +92,8 @@ def export_drone_ode_model() -> AcadosModel:
 
     f_expl = vertcat(
         v_WB,
-        quat_derivative_casadi(q_WB, omega_B),
-        quat_rotation_casadi(vertcat(0, 0, sum1(thrust)), q_WB) / m + vertcat(0, 0, g),
+        functions.quat_derivative_casadi(q_WB, omega_B),
+        functions.quat_rotation_casadi(vertcat(0, 0, sum1(thrust)), q_WB) / m + vertcat(0, 0, g),
         inv(J) @ ((P @ thrust - cross(omega_B, J @ omega_B))),
         (thrust_set - thrust) * 25,
     )

@@ -14,7 +14,7 @@
 
 1. Drone model. Specifies system model of drone for ACADOS
 ```
-/drone_mt_ros2/ros/src/px4_ros_com/scripts/drone_model.py
+/drone_mt_ros2/ros/src/px4_ros_com/src/examples/offboard_py/drone_model.py
 ```
 
 
