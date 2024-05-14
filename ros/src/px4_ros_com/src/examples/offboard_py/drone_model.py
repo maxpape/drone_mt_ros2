@@ -34,6 +34,7 @@ def export_drone_ode_model() -> AcadosModel:
     c_tau = SX.sym("c_tau")  # rotor drag torque constant
     p_ref = SX.sym("p_ref", 3)  # reference variables for setpoint
     q_ref = SX.sym("q_ref", 4)
+    lin_acc_offset = SX.sym("lin_acc_offset", 3)
     
 
     # combine parameters to single vector
@@ -53,7 +54,8 @@ def export_drone_ode_model() -> AcadosModel:
         d_y3,
         c_tau,
         p_ref,
-        q_ref
+        q_ref,
+        lin_acc_offset
     )
 
     # Define state variables
@@ -93,7 +95,7 @@ def export_drone_ode_model() -> AcadosModel:
     f_expl = vertcat(
         v_WB,
         functions.quat_derivative_casadi(q_WB, omega_B),
-        functions.quat_rotation_casadi(vertcat(0, 0, sum1(thrust)), q_WB) / m + vertcat(0, 0, g),
+        functions.quat_rotation_casadi(vertcat(0, 0, sum1(thrust)), q_WB) / m + vertcat(0, 0, g) + lin_acc_offset,
         inv(J) @ ((P @ thrust - cross(omega_B, J @ omega_B))),
         (thrust_set - thrust) * 25,
     )

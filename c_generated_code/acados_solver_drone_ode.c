@@ -320,7 +320,7 @@ void drone_ode_acados_create_3_create_and_set_functions(drone_ode_solver_capsule
         capsule->__CAPSULE_FNC__.casadi_sparsity_in = & __MODEL_BASE_FNC__ ## _sparsity_in; \
         capsule->__CAPSULE_FNC__.casadi_sparsity_out = & __MODEL_BASE_FNC__ ## _sparsity_out; \
         capsule->__CAPSULE_FNC__.casadi_work = & __MODEL_BASE_FNC__ ## _work; \
-        external_function_param_casadi_create(&capsule->__CAPSULE_FNC__ , 21); \
+        external_function_param_casadi_create(&capsule->__CAPSULE_FNC__ , 24); \
     } while(false)
 
 
@@ -942,7 +942,7 @@ int drone_ode_acados_update_params(drone_ode_solver_capsule* capsule, int stage,
 {
     int solver_status = 0;
 
-    int casadi_np = 21;
+    int casadi_np = 24;
     if (casadi_np != np) {
         printf("acados_update_params: trying to set %i parameters for external functions."
             " External function has %i parameters. Exiting.\n", np, casadi_np);
@@ -1002,7 +1002,7 @@ int drone_ode_acados_update_params_sparse(drone_ode_solver_capsule * capsule, in
 {
     int solver_status = 0;
 
-    int casadi_np = 21;
+    int casadi_np = 24;
     if (casadi_np < n_update) {
         printf("drone_ode_acados_update_params_sparse: trying to set %d parameters for external functions."
             " External function has %d parameters. Exiting.\n", n_update, casadi_np);
