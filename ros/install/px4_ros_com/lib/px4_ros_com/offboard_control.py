@@ -500,7 +500,7 @@ class OffboardControl(Node):
         # Create a GPRegression model with an RBF kernel
         
         
-        self.kernel = GPy.kern.RBF(input_dim=1, variance=1, lengthscale=5)
+        self.kernel = GPy.kern.RBF(input_dim=1, variance=1, lengthscale=3)
         self.gpmodel = GPy.models.GPRegression(x, y, self.kernel)
         
         #model.rbf.lengthscale.fix()
@@ -988,7 +988,7 @@ class OffboardControl(Node):
                 simx_1_w = simx_1[10:13]
                 ##
                 ### calculate acceleration from velocity
-                sim_accel_lin = (simx_1_v - simx_0_v) / (self.Tf/self.N_horizon)
+                sim_accel_lin = (simx_1_v - simx_0_v) / (self.Tf/self.N_horizon) - self.lin_acc_offset[1]
                 sim_accel_ang = (simx_1_w - simx_0_w) / (self.Tf/self.N_horizon)
                 
                 ### append calculated acceleration to history ringbuffer
@@ -1053,12 +1053,13 @@ class OffboardControl(Node):
                 
                 #print(self.sim_imu_history[0][0])
                 
+                
                 imu_sim.x = float(self.sim_imu_lin_history[1][0])
                 imu_sim.y = float(self.sim_imu_lin_history[1][1])
                 imu_sim.z = float(self.sim_imu_lin_history[1][2])
-                imu_gp.x = float(self.sim_imu_lin_history[1][0]) 
-                imu_gp.y = float(self.sim_imu_lin_history[1][1]) 
-                imu_gp.z = float(self.sim_imu_lin_history[1][2]) 
+                imu_gp.x = float(self.sim_imu_lin_history[1][0]) + prediction0[0,0]
+                imu_gp.y = float(self.sim_imu_lin_history[1][1]) + prediction1[0,0]
+                imu_gp.z = float(self.sim_imu_lin_history[1][2]) + prediction2[0,0]
                 
                 self.imu_pub_real.publish(imu_real)
                 self.imu_pub_sim.publish(imu_sim)
