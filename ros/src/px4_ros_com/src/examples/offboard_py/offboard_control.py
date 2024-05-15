@@ -199,22 +199,22 @@ class OffboardControl(Node):
                             self.c_tau])
         
         # imu data
-        history_length = 15
+        history_length = 100
         
         self.linear_accel_real = np.zeros(3)
         self.angular_accel_real = np.zeros(3)
         self.imu_timestamp = 0.0
         self.imu_data = np.concatenate((self.linear_accel_real, self.angular_accel_real, self.get_clock().now().nanoseconds), axis=None)
         self.imu_history = collections.deque(maxlen=history_length)
-        self.imu_history.appendleft(self.imu_data)
+        
         
         
         self.linear_accel_sim = np.zeros(3)
         self.angular_accel_sim = np.zeros(3)
         self.sim_imu_lin_history = collections.deque(maxlen=history_length)
         self.sim_imu_ang_history = collections.deque(maxlen=history_length)
-        self.sim_imu_lin_history.appendleft(np.array([0,0,0,0]))
-        self.sim_imu_ang_history.appendleft(np.array([0,0,0,0]))
+        
+        
         
         
         
@@ -227,13 +227,23 @@ class OffboardControl(Node):
         self.thrust = np.ones(4)*self.hover_thrust
         self.state_timestamp = self.get_clock().now().nanoseconds
         self.current_state = np.concatenate((self.position, self.attitude, self.velocity, self.angular_velocity, self.thrust, self.state_timestamp), axis=None)
-        self.state_history = collections.deque(maxlen=20)
-        self.state_history.appendleft(self.current_state)
+        self.state_history = collections.deque(maxlen=history_length)
         self.update_current_state()
         
+        
+        
+        
         # state history from MPC sim
-        self.state_history_sim = collections.deque(maxlen=20)
-        self.state_history_sim.appendleft(self.current_state)
+        self.state_history_sim = collections.deque(maxlen=history_length)
+        
+        
+        # initially fill all ringbuffers
+        for x in range(history_length):
+            self.imu_history.appendleft(self.imu_data)
+            self.sim_imu_lin_history.appendleft(np.array([0,0,0,0]))
+            self.sim_imu_ang_history.appendleft(np.array([0,0,0,0]))
+            self.state_history.appendleft(self.current_state)
+            self.state_history_sim.appendleft(self.current_state)
         
         #setpoint variables
         self.position_setpoint = np.array([0,0,2])
@@ -444,7 +454,8 @@ class OffboardControl(Node):
         
         
         for j in range(0, self.gp_prediction_horizon-1):
-            parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j], self.ang_acc_offset[j,0:2], np.zeros(1)), axis=None)
+            #parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
+            parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j],  np.zeros(3)), axis=None)
             self.ocp_solver.set(j, "p", parameters)
             
         for j in range(self.gp_prediction_horizon-1, self.N_horizon):
@@ -501,7 +512,7 @@ class OffboardControl(Node):
         # Create a GPRegression model with an RBF kernel
         
         
-        self.kernel = GPy.kern.RBF(input_dim=1, variance=1, lengthscale=3)
+        self.kernel = GPy.kern.RBF(input_dim=1, variance=1, lengthscale=50)
         self.gpmodel = GPy.models.GPRegression(x, y, self.kernel)
         
         #model.rbf.lengthscale.fix()
@@ -1062,19 +1073,19 @@ class OffboardControl(Node):
                 imu_sim = Vector3()
                 imu_gp = Vector3()
                 #
-                imu_real.x = self.imu_history[0][3]
-                imu_real.y = self.imu_history[0][4]
-                imu_real.z = self.imu_history[0][5]
+                imu_real.x = self.imu_history[0][0]
+                imu_real.y = self.imu_history[0][1]
+                imu_real.z = self.imu_history[0][2]
                 
                 #print(self.sim_imu_history[0][0])
                 
                 
-                imu_sim.x = float(self.sim_imu_ang_history[0][0])
-                imu_sim.y = float(self.sim_imu_ang_history[0][1])
-                imu_sim.z = float(self.sim_imu_ang_history[0][2])
-                imu_gp.x = float(self.sim_imu_ang_history[0][0]) + prediction_ang_x[0,0]
-                imu_gp.y = float(self.sim_imu_ang_history[0][1]) + prediction_ang_y[0,0]
-                imu_gp.z = float(self.sim_imu_ang_history[0][2]) + prediction_ang_z[0,0]
+                imu_sim.x = float(self.sim_imu_lin_history[0][0])
+                imu_sim.y = float(self.sim_imu_lin_history[0][1])
+                imu_sim.z = float(self.sim_imu_lin_history[0][2])
+                imu_gp.x = float(self.sim_imu_lin_history[0][0]) + prediction_lin_x[0,0]
+                imu_gp.y = float(self.sim_imu_lin_history[0][1]) + prediction_lin_y[0,0]
+                imu_gp.z = float(self.sim_imu_lin_history[0][2]) + prediction_lin_z[0,0]
                 
                 self.imu_pub_real.publish(imu_real)
                 self.imu_pub_sim.publish(imu_sim)
