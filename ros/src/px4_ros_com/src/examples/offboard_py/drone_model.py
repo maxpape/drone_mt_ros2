@@ -35,6 +35,8 @@ def export_drone_ode_model() -> AcadosModel:
     p_ref = SX.sym("p_ref", 3)  # reference variables for setpoint
     q_ref = SX.sym("q_ref", 4)
     lin_acc_offset = SX.sym("lin_acc_offset", 3)
+    ang_acc_offset = SX.sym("ang_acc_offset", 3)
+    
     
 
     # combine parameters to single vector
@@ -55,7 +57,8 @@ def export_drone_ode_model() -> AcadosModel:
         c_tau,
         p_ref,
         q_ref,
-        lin_acc_offset
+        lin_acc_offset,
+        ang_acc_offset
     )
 
     # Define state variables
@@ -96,7 +99,7 @@ def export_drone_ode_model() -> AcadosModel:
         v_WB,
         functions.quat_derivative_casadi(q_WB, omega_B),
         functions.quat_rotation_casadi(vertcat(0, 0, sum1(thrust)), q_WB) / m + vertcat(0, 0, g) + lin_acc_offset,
-        inv(J) @ ((P @ thrust - cross(omega_B, J @ omega_B))),
+        inv(J) @ ((P @ thrust - cross(omega_B, J @ omega_B))) + ang_acc_offset,
         (thrust_set - thrust) * 25,
     )
 

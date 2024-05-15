@@ -156,11 +156,11 @@ class OffboardControl(Node):
         self.Tf = 2
         self.nx = 17
         self.nu = 4
-        self.Tmax = 7
+        self.Tmax = 9
         self.Tmin = 1
         self.vmax = 3
         self.angular_vmax = 1.5
-        self.max_angle_q = 0.25
+        self.max_angle_q = 0.3
         self.max_motor_rpm = 1100
         
         # parameters for system model
@@ -261,12 +261,13 @@ class OffboardControl(Node):
         #kernel = k1*k2
         self.gpmodel = GPy.models.GPRegression(np.array([[0]]), np.array([[0]]), self.kernel)
         #self.gpmodel.rbf.lengthscale.constrain_bounded(1.0, 150.0, warning=False )
-        self.gp_prediction_horizon = 4
-        self.lin_acc_offset = np.zeros((self.gp_prediction_horizon,3))
+        self.gp_prediction_horizon = 5
+        self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
+        self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
 
 
 
-        self.parameters = np.concatenate((self.params, self.setpoint, np.zeros(3)), axis=None)
+        self.parameters = np.concatenate((self.params, self.setpoint, np.zeros(6)), axis=None)
 
         # Create a timer to publish control commands
         self.timer = self.create_timer(self.Tf/self.N_horizon, self.timer_callback)
@@ -443,14 +444,14 @@ class OffboardControl(Node):
         
         
         for j in range(0, self.gp_prediction_horizon-1):
-            parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j]), axis=None)
+            parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j], self.ang_acc_offset[j,0:2], np.zeros(1)), axis=None)
             self.ocp_solver.set(j, "p", parameters)
             
         for j in range(self.gp_prediction_horizon-1, self.N_horizon):
-            parameters = np.concatenate((self.params, self.trajectory[j], np.zeros(3)), axis=None)
+            parameters = np.concatenate((self.params, self.trajectory[j], np.zeros(6)), axis=None)
             self.ocp_solver.set(j, "p", parameters)
         
-        parameters = np.concatenate((self.params, self.trajectory[self.N_horizon], np.zeros(3)), axis=None)
+        parameters = np.concatenate((self.params, self.trajectory[self.N_horizon], np.zeros(6)), axis=None)
         self.ocp_solver.set(self.N_horizon, "p", parameters)  
     
     
@@ -881,14 +882,12 @@ class OffboardControl(Node):
                 command = np.asarray([self.map_thrust(u) for u in U])
                 
                 self.publish_motor_command(np.zeros(4))
-                #self.publish_motor_command_pseudo(command)
+               
                 
                 # get current state and predicted next state
                 simx_0 = self.ocp_solver.get(0, 'x')
                 simx_1 = self.ocp_solver.get(1, 'x')
                 
-                #lin_hist = np.asarray(self.sim_imu_lin_history)[:,0:3]
-                #ang_hist = np.asarray(self.sim_imu_ang_history)[:,0:3]
                 
                 # extract linear and angular velocity
                 simx_0_v = simx_0[7:10]
@@ -955,11 +954,6 @@ class OffboardControl(Node):
                 
                 
                 
-                # optinally print motor commands
-                
-                #print('FL: {}, FR: {}'.format(command[3], command[0]))
-                #print('BL: {}, BR: {}\n'.format(command[2], command[1]))
-                
                 
                 self.publish_motor_command(command)
                 
@@ -969,27 +963,31 @@ class OffboardControl(Node):
                     simx.append(self.ocp_solver.get(i, 'x'))
                 simx = np.asarray(simx)
                 
+                # calculate linear acceleration for next time steps; used to predict error
                 simx_v = simx[:-1,7:10]
                 simx_v_next = simx[1:, 7:10]
-                sim_accel_pred = (simx_v_next - simx_v) / (self.Tf/self.N_horizon)
+                sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon)
+                
+                # calculate angular acceleration for next time steps; used to predict error
+                simx_w = simx[:-1,10:13]
+                simx_w_next = simx[1:, 10:13]
+                sim_accel_pred_ang = (simx_w_next - simx_w) / (self.Tf/self.N_horizon)
                 
                 
-                # get current state and predicted next state
-                simx_0 = self.ocp_solver.get(0, 'x')
-                simx_1 = self.ocp_solver.get(1, 'x')
-                #
-                ##lin_hist = np.asarray(self.sim_imu_lin_history)[:,0:3]
-                ##ang_hist = np.asarray(self.sim_imu_ang_history)[:,0:3]
-                #
-                ## extract linear and angular velocity
-                simx_0_v = simx_0[7:10]
-                simx_1_v = simx_1[7:10]
-                simx_0_w = simx_0[10:13]
-                simx_1_w = simx_1[10:13]
-                ##
+                ## get current state and predicted next state
+                #simx_0 = self.ocp_solver.get(0, 'x')
+                #simx_1 = self.ocp_solver.get(1, 'x')
+
+
+                ### extract linear and angular velocity
+                #simx_0_v = simx_0[7:10]
+                #simx_1_v = simx_1[7:10]
+                #simx_0_w = simx_0[10:13]
+                #simx_1_w = simx_1[10:13]
+              
                 ### calculate acceleration from velocity
-                sim_accel_lin = (simx_1_v - simx_0_v) / (self.Tf/self.N_horizon) - self.lin_acc_offset[1]
-                sim_accel_ang = (simx_1_w - simx_0_w) / (self.Tf/self.N_horizon)
+                sim_accel_lin = sim_accel_pred_lin[0] - self.lin_acc_offset[1]
+                sim_accel_ang = sim_accel_pred_ang[0] - self.ang_acc_offset[1]
                 
                 ### append calculated acceleration to history ringbuffer
                 t = self.get_clock().now().nanoseconds
@@ -1004,41 +1002,55 @@ class OffboardControl(Node):
                 realx_0_w = self.state_history[1][10:13]
                 realx_1_w = self.state_history[0][10:13]
               
-              
                 ## get timestamps from states
                 t0 = self.state_history[1][-1] * 1e-6
                 t1 = self.state_history[0][-1] * 1e-6
                 
-                
                 ### calculate acceleration from velocity
                 dt = (t1-t0)
-                ###if dt == 0:
-                ###    dt = self.Tf/self.N_horizon
+                if dt == 0:
+                    dt = self.Tf/self.N_horizon
                 real_accel_lin = (realx_1_v - realx_0_v) / (dt)
                 real_accel_ang = (realx_1_w - realx_0_w) / (dt)
-                ##
-                ##
+                
                 ### append calculated acceleration to history ringbuffer
-                ##
-                ##
                 self.linear_accel_real = real_accel_lin
                 self.angular_accel_real = real_accel_ang
                 self.imu_data = np.concatenate((self.linear_accel_real, self.angular_accel_real, self.current_state[-1]), axis=None)
-                #
                 self.imu_history.appendleft(self.imu_data)
-                #
-                #
+             
+             
+             
                 ## prediction of linear acceleration error
-                real_hist = np.nan_to_num(np.asarray(list(self.imu_history)[:-1])[:, 0:3], nan=0)
-                sim_hist = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[1:])[:, 0:3], nan=0)
-                error = real_hist - sim_hist
+                real_hist_lin = np.nan_to_num(np.asarray(list(self.imu_history)[:-1])[:, 0:3], nan=0)
+                sim_hist_lin = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[1:])[:, 0:3], nan=0)
+                error_lin = real_hist_lin - sim_hist_lin
                 
                 
-                prediction0 = self.predict_next_y(sim_hist[:,0].reshape(-1,1), error[:,0].reshape(-1,1), sim_accel_pred[:,0].reshape(-1,1))
-                prediction1 = self.predict_next_y(sim_hist[:,1].reshape(-1,1), error[:,1].reshape(-1,1), sim_accel_pred[:,1].reshape(-1,1))
-                prediction2 = self.predict_next_y(sim_hist[:,2].reshape(-1,1), error[:,2].reshape(-1,1), sim_accel_pred[:,2].reshape(-1,1))
+                prediction_lin_x = self.predict_next_y(sim_hist_lin[:,0].reshape(-1,1), error_lin[:,0].reshape(-1,1), sim_accel_pred_lin[:,0].reshape(-1,1))
+                prediction_lin_y = self.predict_next_y(sim_hist_lin[:,1].reshape(-1,1), error_lin[:,1].reshape(-1,1), sim_accel_pred_lin[:,1].reshape(-1,1))
+                prediction_lin_z = self.predict_next_y(sim_hist_lin[:,2].reshape(-1,1), error_lin[:,2].reshape(-1,1), sim_accel_pred_lin[:,2].reshape(-1,1))
                 
-                self.lin_acc_offset = np.hstack((prediction0, prediction1, prediction2))
+                self.lin_acc_offset = np.hstack((prediction_lin_x, prediction_lin_y, prediction_lin_z))
+                
+                
+                ## prediction of angular acceleration error
+                real_hist_ang = np.nan_to_num(np.asarray(list(self.imu_history)[:-1])[:, 3:6], nan=0)
+                sim_hist_ang = np.nan_to_num(np.asarray(list(self.sim_imu_ang_history)[1:])[:, 0:3], nan=0)
+                error_ang = real_hist_ang - sim_hist_ang
+                
+                
+                prediction_ang_x = self.predict_next_y(sim_hist_ang[:,0].reshape(-1,1), error_ang[:,0].reshape(-1,1), sim_accel_pred_ang[:,0].reshape(-1,1))
+                prediction_ang_y = self.predict_next_y(sim_hist_ang[:,1].reshape(-1,1), error_ang[:,1].reshape(-1,1), sim_accel_pred_ang[:,1].reshape(-1,1))
+                prediction_ang_z = self.predict_next_y(sim_hist_ang[:,2].reshape(-1,1), error_ang[:,2].reshape(-1,1), sim_accel_pred_ang[:,2].reshape(-1,1))
+                
+                self.ang_acc_offset = np.hstack((prediction_ang_x, prediction_ang_y, prediction_ang_z))
+                
+                
+                
+                
+                
+                
                 
                 
                 # publish data to compare: real acceleration vs. simulated acceleration from last iteration
@@ -1047,19 +1059,19 @@ class OffboardControl(Node):
                 imu_sim = Vector3()
                 imu_gp = Vector3()
                 #
-                imu_real.x = self.imu_history[0][0]
-                imu_real.y = self.imu_history[0][1]
-                imu_real.z = self.imu_history[0][2]
+                imu_real.x = self.imu_history[0][3]
+                imu_real.y = self.imu_history[0][4]
+                imu_real.z = self.imu_history[0][5]
                 
                 #print(self.sim_imu_history[0][0])
                 
                 
-                imu_sim.x = float(self.sim_imu_lin_history[1][0])
-                imu_sim.y = float(self.sim_imu_lin_history[1][1])
-                imu_sim.z = float(self.sim_imu_lin_history[1][2])
-                imu_gp.x = float(self.sim_imu_lin_history[1][0]) + prediction0[0,0]
-                imu_gp.y = float(self.sim_imu_lin_history[1][1]) + prediction1[0,0]
-                imu_gp.z = float(self.sim_imu_lin_history[1][2]) + prediction2[0,0]
+                imu_sim.x = float(self.sim_imu_ang_history[1][0])
+                imu_sim.y = float(self.sim_imu_ang_history[1][1])
+                imu_sim.z = float(self.sim_imu_ang_history[1][2])
+                imu_gp.x = float(self.sim_imu_ang_history[1][0]) + prediction_ang_x[0,0]
+                imu_gp.y = float(self.sim_imu_ang_history[1][1]) + prediction_ang_y[0,0]
+                imu_gp.z = float(self.sim_imu_ang_history[1][2]) + prediction_ang_z[0,0]
                 
                 self.imu_pub_real.publish(imu_real)
                 self.imu_pub_sim.publish(imu_sim)
@@ -1073,25 +1085,7 @@ class OffboardControl(Node):
                 #
                 #
                 
-                #x0_v = self.state_history[1][7:10]
-                #x1_v = self.state_history[0][7:10]
-                #
-                #
-                #x0_w = self.state_history[1][10:13]
-                #x1_w = self.state_history[0][10:13]
-                #
-                #t_0 = self.state_history[1][-1] * 1e-9
-                #t_1 = self.state_history[0][-1] * 1e-9
-                ##
-                #sim_accel_lin = (x1_v - x0_v) / (t_1-t_0)
-                #sim_accel_ang = (x1_w - x0_w) / (t_1-t_0)
-                ##
-                #lin_accel_avg = np.mean(np.concatenate((lin_hist,np.array([sim_accel_lin])), axis=0), axis=0)
-                #ang_accel_avg = np.mean(np.concatenate((ang_hist,np.array([sim_accel_ang])), axis=0), axis=0)
                 
-                #t = self.get_clock().now().nanoseconds
-                #self.sim_imu_lin_history.appendleft(np.concatenate((lin_accel_avg, t), axis=None))
-                #self.sim_imu_ang_history.appendleft(np.concatenate((ang_accel_avg, t), axis=None))
                 
                 
                 
@@ -1105,7 +1099,6 @@ class OffboardControl(Node):
                 #print("Linear accel simu: {}\n".format(sim_accel))
                 
                 
-#
                 
                 # optinally print position and attitude
                 #print('Position: {}'.format(self.position))

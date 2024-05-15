@@ -320,7 +320,7 @@ void drone_ode_acados_create_3_create_and_set_functions(drone_ode_solver_capsule
         capsule->__CAPSULE_FNC__.casadi_sparsity_in = & __MODEL_BASE_FNC__ ## _sparsity_in; \
         capsule->__CAPSULE_FNC__.casadi_sparsity_out = & __MODEL_BASE_FNC__ ## _sparsity_out; \
         capsule->__CAPSULE_FNC__.casadi_work = & __MODEL_BASE_FNC__ ## _work; \
-        external_function_param_casadi_create(&capsule->__CAPSULE_FNC__ , 24); \
+        external_function_param_casadi_create(&capsule->__CAPSULE_FNC__ , 27); \
     } while(false)
 
 
@@ -569,13 +569,13 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* ubu = lubu + NBU;
     
     lbu[0] = 1;
-    ubu[0] = 7;
+    ubu[0] = 9;
     lbu[1] = 1;
-    ubu[1] = 7;
+    ubu[1] = 9;
     lbu[2] = 1;
-    ubu[2] = 7;
+    ubu[2] = 9;
     lbu[3] = 1;
-    ubu[3] = 7;
+    ubu[3] = 9;
 
     for (int i = 0; i < N; i++)
     {
@@ -608,10 +608,10 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    lbx[0] = -0.25;
-    ubx[0] = 0.25;
-    lbx[1] = -0.25;
-    ubx[1] = 0.25;
+    lbx[0] = -0.3;
+    ubx[0] = 0.3;
+    lbx[1] = -0.3;
+    ubx[1] = 0.3;
     lbx[2] = -3;
     ubx[2] = 3;
     lbx[3] = -3;
@@ -942,7 +942,7 @@ int drone_ode_acados_update_params(drone_ode_solver_capsule* capsule, int stage,
 {
     int solver_status = 0;
 
-    int casadi_np = 24;
+    int casadi_np = 27;
     if (casadi_np != np) {
         printf("acados_update_params: trying to set %i parameters for external functions."
             " External function has %i parameters. Exiting.\n", np, casadi_np);
@@ -1002,7 +1002,7 @@ int drone_ode_acados_update_params_sparse(drone_ode_solver_capsule * capsule, in
 {
     int solver_status = 0;
 
-    int casadi_np = 24;
+    int casadi_np = 27;
     if (casadi_np < n_update) {
         printf("drone_ode_acados_update_params_sparse: trying to set %d parameters for external functions."
             " External function has %d parameters. Exiting.\n", n_update, casadi_np);

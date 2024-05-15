@@ -135,6 +135,9 @@ int main()
     p[21] = 0;
     p[22] = 0;
     p[23] = 0;
+    p[24] = 0;
+    p[25] = 0;
+    p[26] = 0;
 
     drone_ode_acados_sim_update_params(capsule, p, NP);
   
