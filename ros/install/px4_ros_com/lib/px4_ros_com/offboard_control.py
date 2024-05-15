@@ -264,7 +264,7 @@ class OffboardControl(Node):
         self.gp_prediction_horizon = 5
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
-
+        self.sim_x_last = self.current_state[:-1]
 
 
         self.parameters = np.concatenate((self.params, self.setpoint, np.zeros(6)), axis=None)
@@ -962,16 +962,18 @@ class OffboardControl(Node):
                 for i in range(self.gp_prediction_horizon):
                     simx.append(self.ocp_solver.get(i, 'x'))
                 simx = np.asarray(simx)
+                simx = np.vstack((self.sim_x_last, simx))
+                
                 
                 # calculate linear acceleration for next time steps; used to predict error
                 simx_v = simx[:-1,7:10]
                 simx_v_next = simx[1:, 7:10]
-                sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon)
+                sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon) 
                 
                 # calculate angular acceleration for next time steps; used to predict error
                 simx_w = simx[:-1,10:13]
                 simx_w_next = simx[1:, 10:13]
-                sim_accel_pred_ang = (simx_w_next - simx_w) / (self.Tf/self.N_horizon)
+                sim_accel_pred_ang = (simx_w_next - simx_w) / (self.Tf/self.N_horizon) 
                 
                 
                 ## get current state and predicted next state
@@ -986,8 +988,8 @@ class OffboardControl(Node):
                 #simx_1_w = simx_1[10:13]
               
                 ### calculate acceleration from velocity
-                sim_accel_lin = sim_accel_pred_lin[0] - self.lin_acc_offset[1]
-                sim_accel_ang = sim_accel_pred_ang[0] - self.ang_acc_offset[1]
+                sim_accel_lin = sim_accel_pred_lin[0]
+                sim_accel_ang = sim_accel_pred_ang[0]
                 
                 ### append calculated acceleration to history ringbuffer
                 t = self.get_clock().now().nanoseconds
@@ -1027,9 +1029,10 @@ class OffboardControl(Node):
                 error_lin = real_hist_lin - sim_hist_lin
                 
                 
-                prediction_lin_x = self.predict_next_y(sim_hist_lin[:,0].reshape(-1,1), error_lin[:,0].reshape(-1,1), sim_accel_pred_lin[:,0].reshape(-1,1))
-                prediction_lin_y = self.predict_next_y(sim_hist_lin[:,1].reshape(-1,1), error_lin[:,1].reshape(-1,1), sim_accel_pred_lin[:,1].reshape(-1,1))
-                prediction_lin_z = self.predict_next_y(sim_hist_lin[:,2].reshape(-1,1), error_lin[:,2].reshape(-1,1), sim_accel_pred_lin[:,2].reshape(-1,1))
+                
+                prediction_lin_x = self.predict_next_y(sim_hist_lin[:,0].reshape(-1,1), error_lin[:,0].reshape(-1,1), sim_accel_pred_lin[1:,0].reshape(-1,1))
+                prediction_lin_y = self.predict_next_y(sim_hist_lin[:,1].reshape(-1,1), error_lin[:,1].reshape(-1,1), sim_accel_pred_lin[1:,1].reshape(-1,1))
+                prediction_lin_z = self.predict_next_y(sim_hist_lin[:,2].reshape(-1,1), error_lin[:,2].reshape(-1,1), sim_accel_pred_lin[1:,2].reshape(-1,1))
                 
                 self.lin_acc_offset = np.hstack((prediction_lin_x, prediction_lin_y, prediction_lin_z))
                 
@@ -1040,9 +1043,9 @@ class OffboardControl(Node):
                 error_ang = real_hist_ang - sim_hist_ang
                 
                 
-                prediction_ang_x = self.predict_next_y(sim_hist_ang[:,0].reshape(-1,1), error_ang[:,0].reshape(-1,1), sim_accel_pred_ang[:,0].reshape(-1,1))
-                prediction_ang_y = self.predict_next_y(sim_hist_ang[:,1].reshape(-1,1), error_ang[:,1].reshape(-1,1), sim_accel_pred_ang[:,1].reshape(-1,1))
-                prediction_ang_z = self.predict_next_y(sim_hist_ang[:,2].reshape(-1,1), error_ang[:,2].reshape(-1,1), sim_accel_pred_ang[:,2].reshape(-1,1))
+                prediction_ang_x = self.predict_next_y(sim_hist_ang[:,0].reshape(-1,1), error_ang[:,0].reshape(-1,1), sim_accel_pred_ang[1:,0].reshape(-1,1))
+                prediction_ang_y = self.predict_next_y(sim_hist_ang[:,1].reshape(-1,1), error_ang[:,1].reshape(-1,1), sim_accel_pred_ang[1:,1].reshape(-1,1))
+                prediction_ang_z = self.predict_next_y(sim_hist_ang[:,2].reshape(-1,1), error_ang[:,2].reshape(-1,1), sim_accel_pred_ang[1:,2].reshape(-1,1))
                 
                 self.ang_acc_offset = np.hstack((prediction_ang_x, prediction_ang_y, prediction_ang_z))
                 
@@ -1066,12 +1069,12 @@ class OffboardControl(Node):
                 #print(self.sim_imu_history[0][0])
                 
                 
-                imu_sim.x = float(self.sim_imu_ang_history[1][0])
-                imu_sim.y = float(self.sim_imu_ang_history[1][1])
-                imu_sim.z = float(self.sim_imu_ang_history[1][2])
-                imu_gp.x = float(self.sim_imu_ang_history[1][0]) + prediction_ang_x[0,0]
-                imu_gp.y = float(self.sim_imu_ang_history[1][1]) + prediction_ang_y[0,0]
-                imu_gp.z = float(self.sim_imu_ang_history[1][2]) + prediction_ang_z[0,0]
+                imu_sim.x = float(self.sim_imu_ang_history[0][0])
+                imu_sim.y = float(self.sim_imu_ang_history[0][1])
+                imu_sim.z = float(self.sim_imu_ang_history[0][2])
+                imu_gp.x = float(self.sim_imu_ang_history[0][0]) + prediction_ang_x[0,0]
+                imu_gp.y = float(self.sim_imu_ang_history[0][1]) + prediction_ang_y[0,0]
+                imu_gp.z = float(self.sim_imu_ang_history[0][2]) + prediction_ang_z[0,0]
                 
                 self.imu_pub_real.publish(imu_real)
                 self.imu_pub_sim.publish(imu_sim)
@@ -1105,6 +1108,8 @@ class OffboardControl(Node):
                 #print('Velocity: {}'.format(self.velocity))
                 #print('Attitude: {}'.format(self.attitude))
                 #print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
+                
+                self.sim_x_last = self.ocp_solver.get(0, 'x')
         stop = time.time()
         
         if (stop-start)*1000 >= 50:
