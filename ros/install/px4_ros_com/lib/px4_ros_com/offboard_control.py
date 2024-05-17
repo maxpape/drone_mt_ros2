@@ -544,8 +544,7 @@ class OffboardControl(Node):
         
         # Predict the mean and variance of the output for the new input
         mean, var = self.gpmodel.predict(new_x)
-        #print('GP lengthscale: {}'.format(self.gpmodel.rbf.lengthscale[0]))
-        #print('GP variance: {}\n'.format(self.gpmodel.rbf.variance[0]))
+        
         # Return the predicted mean
         return mean
        
@@ -1043,13 +1042,10 @@ class OffboardControl(Node):
                 ## prediction of linear acceleration error
                 real_hist_lin = np.nan_to_num(np.asarray(list(self.imu_history)[1:])[:, 0:3], nan=0)
                 sim_hist_lin = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[:-1])[:, 0:3], nan=0)
-                #error_lin = real_hist_lin - sim_hist_lin
+                
                 
                 
                 sim_accel_pred_lin_ext = np.vstack((sim_accel_pred_lin, self.sim_imu_lin_history[-2][0:3]))
-                
-                
-                
                 
                 gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,0].reshape(-1,1), real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,0].reshape(-1,1), print_mean = False)
                 gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,1].reshape(-1,1), real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,1].reshape(-1,1), print_mean = False)
