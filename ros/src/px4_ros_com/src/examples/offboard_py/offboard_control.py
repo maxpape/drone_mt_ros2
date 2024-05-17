@@ -271,7 +271,7 @@ class OffboardControl(Node):
         #kernel = k1*k2
         self.gpmodel = GPy.models.GPRegression(np.array([[0]]), np.array([[0]]), self.kernel)
         #self.gpmodel.rbf.lengthscale.constrain_bounded(0.5, 15.0, warning=False )
-        self.gp_prediction_horizon = 4
+        self.gp_prediction_horizon = 6
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.sim_x_last = self.current_state[:-1]
@@ -452,17 +452,19 @@ class OffboardControl(Node):
             self.trajectory = self.trajectory[0:self.N_horizon+2]
             
         
-        
+                
         
         parameters = np.concatenate((self.params, self.trajectory[0], np.zeros(6)), axis=None)
         self.ocp_solver.set(0, "p", parameters)  
         for j in range(1, self.gp_prediction_horizon-1):
-            parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
-            #parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j][0:2],  np.zeros(4)), axis=None)
+            #parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
+            parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
+            
             self.ocp_solver.set(j, "p", parameters)
             
         for j in range(self.gp_prediction_horizon-1, self.N_horizon):
             parameters = np.concatenate((self.params, self.trajectory[j], np.zeros(6)), axis=None)
+            
             self.ocp_solver.set(j, "p", parameters)
         
         parameters = np.concatenate((self.params, self.trajectory[self.N_horizon], np.zeros(6)), axis=None)
@@ -515,7 +517,7 @@ class OffboardControl(Node):
         # Create a GPRegression model with an RBF kernel
         
         
-        kernel = GPy.kern.RBF(input_dim=1, variance=0.8, lengthscale=0.05)
+        kernel = GPy.kern.RBF(input_dim=1, variance=self.variance, lengthscale=self.lengthscale)
         # Define a non-zero mean function
         #x_mean = np.mean(x)
         #y_mean = np.mean(y)
@@ -1073,8 +1075,12 @@ class OffboardControl(Node):
                 #self.ang_acc_offset = np.hstack((prediction_ang_x, prediction_ang_y, prediction_ang_z))
                 
                 
-                position_average = np.mean(np.asarray(list(self.state_history)[:,0:3]), axis=0)
-                print(position_average)
+                postition_hist = np.asarray(list(self.state_history))[:,0:3]    
+                postition_average = np.mean(postition_hist, axis=0)
+                
+                position_error = self.setpoint[0:3] - postition_average
+                
+                print('Average deviation: {}'.format(position_error))
                 
                 
                 
