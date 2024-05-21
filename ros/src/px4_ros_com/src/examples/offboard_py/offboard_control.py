@@ -964,9 +964,7 @@ class OffboardControl(Node):
                 self.imu_history.append(self.imu_data)
                 
                 
-                # prediction of linear acceleration error
-                real_hist = np.asarray(list(self.imu_history))[:, 0:3]
-                sim_hist = np.asarray(list(self.sim_imu_lin_history))[:, 0:3]
+                
 
             elif self.offboard_setpoint_counter == 100:
                 print('starting control')
@@ -1003,35 +1001,36 @@ class OffboardControl(Node):
                 
                 
               
-                ### calculate acceleration from velocity
+                
+                
+                
+                # append calculated 1-step-prediction for acceleration to history ringbuffer
                 sim_accel_lin = sim_accel_pred_lin[0]
                 sim_accel_ang = sim_accel_pred_ang[0]
-                
-                ### append calculated acceleration to history ringbuffer
                 t = self.get_clock().now().nanoseconds
                 self.sim_imu_lin_history.append(np.concatenate((sim_accel_lin, t), axis=None))
                 self.sim_imu_ang_history.append(np.concatenate((sim_accel_ang, t), axis=None))
                 
                 
-                ## now for the real acceleration
-                ## extract linear and angular velocity
+                # now for the real acceleration
+                # extract linear and angular velocity
                 realx_0_v = self.state_history[-2][7:10]
                 realx_1_v = self.state_history[-1][7:10]
                 realx_0_w = self.state_history[-2][10:13]
                 realx_1_w = self.state_history[-1][10:13]
               
-                ## get timestamps from states
+                # get timestamps from states
                 t0 = self.state_history[-2][-1] * 1e-6
                 t1 = self.state_history[-1][-1] * 1e-6
                 
-                ### calculate acceleration from velocity
+                # calculate acceleration from velocity
                 dt = (t1-t0)
                 if dt == 0:
                     dt = self.Tf/self.N_horizon
                 real_accel_lin = (realx_1_v - realx_0_v) / (dt)
                 real_accel_ang = (realx_1_w - realx_0_w) / (dt)
                 
-                ### append calculated acceleration to history ringbuffer
+                # append calculated acceleration to history ringbuffer
                 self.linear_accel_real = real_accel_lin
                 self.angular_accel_real = real_accel_ang
                 self.imu_data = np.concatenate((self.linear_accel_real, self.angular_accel_real, self.current_state[-1]), axis=None)
@@ -1039,20 +1038,19 @@ class OffboardControl(Node):
              
              
              
-                ## prediction of linear acceleration error
+                # prediction of linear acceleration error
                 real_hist_lin = np.nan_to_num(np.asarray(list(self.imu_history)[1:])[:, 0:3], nan=0)
                 sim_hist_lin = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[:-1])[:, 0:3], nan=0)
-                
-                
-                
+
                 sim_accel_pred_lin_ext = np.vstack((sim_accel_pred_lin, self.sim_imu_lin_history[-2][0:3]))
                 
                 gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,0].reshape(-1,1), real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,0].reshape(-1,1), print_mean = False)
                 gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,1].reshape(-1,1), real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,1].reshape(-1,1), print_mean = False)
                 gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,2].reshape(-1,1), real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,2].reshape(-1,1), print_mean = True)
                 
-                self.lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1,0].reshape(-1,1), gp_prediction_lin_y[:-1,0].reshape(-1,1), gp_prediction_lin_z[:-1,0].reshape(-1,1)))
                 
+                # calculate offset from prediction of GP and MPC
+                self.lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1,0].reshape(-1,1), gp_prediction_lin_y[:-1,0].reshape(-1,1), gp_prediction_lin_z[:-1,0].reshape(-1,1)))
                 self.lin_acc_offset = self.lin_acc_offset - sim_accel_pred_lin
                 
                 
