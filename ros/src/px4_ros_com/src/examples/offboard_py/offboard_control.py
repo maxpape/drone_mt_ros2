@@ -264,9 +264,9 @@ class OffboardControl(Node):
 
         # GP model and parameters
         # gp parameters
-        self.lengthscale = 0.05
-        self.variance = 0.8
-        self.kernel = GPy.kern.RBF(input_dim=1, variance=self.variance, lengthscale=self.lengthscale)
+        self.lengthscale = np.array([0.05, 0.05, 0.05])
+        self.variance = np.array([0.8, 0.8, 0.8])
+        self.kernel = GPy.kern.RBF(input_dim=1, variance=self.variance[0], lengthscale=self.lengthscale[0])
         #k2 = GPy.kern.Linear(input_dim=1, variances=1)
         #kernel = k1*k2
         self.gpmodel = GPy.models.GPRegression(np.array([[0]]), np.array([[0]]), self.kernel)
@@ -502,7 +502,7 @@ class OffboardControl(Node):
         return SetParametersResult(successful=True)
 
     
-    def predict_next_y(self, x, y, new_x, print_mean):
+    def predict_next_y(self, x, y, new_x, axis):
         """
         Predict the next y for a given x using GPy.
 
@@ -517,7 +517,7 @@ class OffboardControl(Node):
         # Create a GPRegression model with an RBF kernel
         
         
-        kernel = GPy.kern.RBF(input_dim=1, variance=self.variance, lengthscale=self.lengthscale)
+        kernel = GPy.kern.RBF(input_dim=1, variance=self.variance[axis], lengthscale=self.lengthscale[axis])
         # Define a non-zero mean function
         #x_mean = np.mean(x)
         #y_mean = np.mean(y)
@@ -1044,9 +1044,9 @@ class OffboardControl(Node):
 
                 sim_accel_pred_lin_ext = np.vstack((sim_accel_pred_lin, self.sim_imu_lin_history[-2][0:3]))
                 
-                gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,0].reshape(-1,1), real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,0].reshape(-1,1), print_mean = False)
-                gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,1].reshape(-1,1), real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,1].reshape(-1,1), print_mean = False)
-                gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,2].reshape(-1,1), real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,2].reshape(-1,1), print_mean = True)
+                gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,0].reshape(-1,1), real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,0].reshape(-1,1), axis=0)
+                gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,1].reshape(-1,1), real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,1].reshape(-1,1), axis=1)
+                gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,2].reshape(-1,1), real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,2].reshape(-1,1), axis=2)
                 
                 
                 # calculate offset from prediction of GP and MPC
