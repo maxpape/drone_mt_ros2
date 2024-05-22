@@ -523,39 +523,60 @@ class OffboardControl(Node):
         """
         # Create a GPRegression model with an RBF kernel
         
-        rbf_kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1])
         
-        rbf_kern.variance.constrain_bounded(0.05, 0.3, warning=False)  # Set variance bounds
-        rbf_kern.lengthscale.constrain_bounded(0.04, 0.07, warning=False)  # Set lengthscale bounds
         
-        bias_kern = GPy.kern.Bias(input_dim=1, variance=0.0001, active_dims=[0])
-        bias_kern.variance.fix()
+        if axis == 0:
+            kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1])
+            kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+        elif axis == 1:
+            kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1])
+            kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+        else:
+            kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1])
+            kern.variance.constrain_bounded(0.001, 0.005, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(0.0001, 0.005, warning=False)  # Set lengthscale bounds
+            
+        
+        #rbf_kern.variance.constrain_bounded(0.05, 0.3, warning=False)  # Set variance bounds
+        #rbf_kern.lengthscale.constrain_bounded(0.04, 0.07, warning=False)  # Set lengthscale bounds
+        
+        
         # Define a non-zero mean function
-        #x_mean = np.mean(x)
+        #x_mean = np.mean(x, axis=0)[0]
         #y_mean = np.mean(y)
-        #####
-        #data_mean = y_mean-x_mean
+        ######
+        #data_mean = np.array([0,0])
         ##if print_mean:
         ##    print(data_mean)
-        #mean_function = GPy.mappings.Constant(input_dim=1, output_dim=1, value=data_mean)
+        #mean_function = GPy.mappings.Constant(input_dim=2, output_dim=1, value=data_mean)
         
-        self.gpmodel = GPy.models.GPRegression(x, y, rbf_kern)
         
-        self.gpmodel.Gaussian_noise.variance = 0.001
-        self.gpmodel.Gaussian_noise.variance.fix()
+        gpmodel = GPy.models.GPRegression(x, y, kern)
+        gpmodel.Gaussian_noise.variance = 0.001
+        gpmodel.Gaussian_noise.variance.fix()
         
         # Optimize the model parameters
         if self.counter == axis:
-            self.gpmodel.optimize()
-            self.variance[axis] = self.gpmodel.rbf.variance[0]
-            self.lengthscale[axis] = self.gpmodel.rbf.lengthscale[0]
+            gpmodel.optimize()
+            
+            
+            self.variance[axis] = gpmodel.rbf.variance[0]
+            self.lengthscale[axis] = gpmodel.rbf.lengthscale[0]
+            
+        print('variance: {}'.format(self.variance[2]))
+        print('lengthscale: {}'.format(self.lengthscale[2]))
+        print('\n')   
         self.counter += 1
+        if self.counter == 3:
+            self.counter = 0
         
         #print('bias variance: {}'.format(self.gpmodel.sum.bias.variance[0]))
         #if self.counter == 30:
         #    self.counter = 0
-        #    print('lengthscale: {}'.format(self.gpmodel.rbf.lengthscale[0]))
-        #    print('variance: {}'.format(self.gpmodel.rbf.variance[0]))
+        #print('lengthscale: {}'.format(gpmodel.sum.rbf.lengthscale[0]))
+        #print('variance: {}'.format(gpmodel.sum.rbf.variance[0]))
         #print('variance after optimization: {}'.format(model.linear.variances[0]))
 
 
@@ -566,7 +587,7 @@ class OffboardControl(Node):
         
         
         # Predict the mean and variance of the output for the new input
-        mean, var = self.gpmodel.predict(new_x)
+        mean, var = gpmodel.predict(new_x)
         
         # Return the predicted mean
         return mean
@@ -1080,8 +1101,9 @@ class OffboardControl(Node):
                 
                 
                 # calculate offset from prediction of GP and MPC
-                self.lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1,0].reshape(-1,1), gp_prediction_lin_y[:-1,0].reshape(-1,1), gp_prediction_lin_z[:-1,0].reshape(-1,1)))
-                self.gp_prediction_history.append(self.lin_acc_offset)
+                lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1,0].reshape(-1,1), gp_prediction_lin_y[:-1,0].reshape(-1,1), gp_prediction_lin_z[:-1,0].reshape(-1,1)))
+                self.lin_acc_offset = lin_acc_offset
+                self.gp_prediction_history.append(lin_acc_offset)
                 
                 self.lin_acc_offset = self.lin_acc_offset - sim_accel_pred_lin[:,0:3]
                 
@@ -1142,12 +1164,13 @@ class OffboardControl(Node):
                 
                 
                 
-                imu_sim.x = float(self.sim_imu_lin_history[-2][0])
-                imu_sim.y = float(self.sim_imu_lin_history[-2][1])
-                imu_sim.z = float(self.sim_imu_lin_history[-2][2])
-                imu_gp.x =  float(self.sim_imu_lin_history[-2][0] + x_error)
-                imu_gp.y =  float(self.sim_imu_lin_history[-2][1] + y_error)
-                imu_gp.z =  float(self.sim_imu_lin_history[-2][2] + z_error)
+                imu_sim.x = float(self.mpc_prediction_history[-2-backsteps][backsteps,0])
+                imu_sim.y = float(self.mpc_prediction_history[-2-backsteps][backsteps,1])
+                imu_sim.z = float(self.mpc_prediction_history[-2-backsteps][backsteps,2])
+                imu_gp.x =  float(self.mpc_prediction_history[-2-backsteps][backsteps,0] + x_error)
+                imu_gp.y =  float(self.mpc_prediction_history[-2-backsteps][backsteps,1] + y_error)
+                imu_gp.z =  float(self.mpc_prediction_history[-2-backsteps][backsteps,2] + z_error)
+                
                 
                 self.imu_pub_gp.publish(imu_gp)
                 self.imu_pub_real.publish(imu_real)
