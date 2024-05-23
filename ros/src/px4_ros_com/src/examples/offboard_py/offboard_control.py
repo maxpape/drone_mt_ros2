@@ -152,15 +152,15 @@ class OffboardControl(Node):
         self.ocp_solver = None
         
         # variables for ACADOS MPC
-        self.N_horizon = 40
-        self.Tf = 2
+        self.N_horizon = 20
+        self.Tf = 1
         self.nx = 17
         self.nu = 4
-        self.Tmax = 9
+        self.Tmax = 7
         self.Tmin = 1
         self.vmax = 3
-        self.angular_vmax = 1.5
-        self.max_angle_q = 0.5
+        self.angular_vmax = 1.0
+        self.max_angle_q = 0.3
         self.max_motor_rpm = 1100
         
         # parameters for system model
@@ -246,7 +246,7 @@ class OffboardControl(Node):
         #kernel = k1*k2
         self.gpmodel = GPy.models.GPRegression(np.array([[0,0]]), np.array([[0,0]]), self.kernel)
         #self.gpmodel.rbf.lengthscale.constrain_bounded(0.5, 15.0, warning=False )
-        self.gp_prediction_horizon = 6
+        self.gp_prediction_horizon = 7
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.sim_x_last = self.current_state[:-1]
@@ -442,13 +442,13 @@ class OffboardControl(Node):
     def set_mpc_target_pos(self):
         
         
-        dist_points = self.vmax/self.N_horizon
+        dist_points = self.vmax/self.N_horizon*self.Tf
         
         if (len(self.setpoints) > 1):
             
             for i in range(len(self.setpoints)):
                 
-                reached = is_setpoint_reached(self.setpoints[i], self.current_state[0:3], self.attitude, dist_points*2.5, 11)
+                reached = is_setpoint_reached(self.setpoints[i], self.current_state[0:3], self.attitude, dist_points*1.5, 11)
                 if reached:
                     self.setpoints = self.setpoints[i+1:]
                     
@@ -456,7 +456,7 @@ class OffboardControl(Node):
         
         
         start = np.concatenate((self.position, self.attitude), axis=None)
-        self.trajectory = generate_trajectory(np.vstack((start, self.setpoints)), dist_points*0.9, 10)
+        self.trajectory = generate_trajectory(np.vstack((start, self.setpoints)), dist_points*0.75, 10)
         
         
         if len(self.trajectory) <= self.N_horizon:
@@ -652,13 +652,13 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([5,5,200])*10
+        Q_p= np.diag([10,10,180])*15
         Q_q= np.eye(1)*100
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
-        R_U = np.eye(4)
+        R_U = np.eye(4)*4
         
-        Q_p_final = np.diag([20,20,200])*50
+        Q_p_final = np.diag([30,30,180])*30
         Q_q_final = np.eye(1)*100
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
@@ -1197,7 +1197,7 @@ class OffboardControl(Node):
                 imu_real.z = real_hist_lin[-1][2]
                 
                 
-                backsteps = 0
+                backsteps = 3
                 
                 
                 

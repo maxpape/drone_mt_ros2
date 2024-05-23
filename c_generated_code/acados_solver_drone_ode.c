@@ -569,13 +569,13 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* ubu = lubu + NBU;
     
     lbu[0] = 1;
-    ubu[0] = 9;
+    ubu[0] = 7;
     lbu[1] = 1;
-    ubu[1] = 9;
+    ubu[1] = 7;
     lbu[2] = 1;
-    ubu[2] = 9;
+    ubu[2] = 7;
     lbu[3] = 1;
-    ubu[3] = 9;
+    ubu[3] = 7;
 
     for (int i = 0; i < N; i++)
     {
@@ -608,22 +608,22 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    lbx[0] = -0.5;
-    ubx[0] = 0.5;
-    lbx[1] = -0.5;
-    ubx[1] = 0.5;
+    lbx[0] = -0.3;
+    ubx[0] = 0.3;
+    lbx[1] = -0.3;
+    ubx[1] = 0.3;
     lbx[2] = -3;
     ubx[2] = 3;
     lbx[3] = -3;
     ubx[3] = 3;
     lbx[4] = -3;
     ubx[4] = 3;
-    lbx[5] = -1.5;
-    ubx[5] = 1.5;
-    lbx[6] = -1.5;
-    ubx[6] = 1.5;
-    lbx[7] = -1.5;
-    ubx[7] = 1.5;
+    lbx[5] = -1;
+    ubx[5] = 1;
+    lbx[6] = -1;
+    ubx[6] = 1;
+    lbx[7] = -1;
+    ubx[7] = 1;
 
     for (int i = 1; i < N; i++)
     {
@@ -714,7 +714,7 @@ int fixed_hess = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 40;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 20;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 
