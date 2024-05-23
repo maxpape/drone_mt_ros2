@@ -160,7 +160,7 @@ class OffboardControl(Node):
         self.Tmin = 1
         self.vmax = 3
         self.angular_vmax = 1.5
-        self.max_angle_q = 0.3
+        self.max_angle_q = 0.5
         self.max_motor_rpm = 1100
         
         # parameters for system model
@@ -253,6 +253,7 @@ class OffboardControl(Node):
         # prediction history of GP
         self.gp_prediction_history = collections.deque(maxlen=history_length)
         self.mpc_prediction_history = collections.deque(maxlen=history_length)
+        self.use_gp = True
         
         # initially fill all ringbuffers
         for x in range(history_length):
@@ -378,6 +379,18 @@ class OffboardControl(Node):
         ]
         )
         
+        
+        
+        
+        self.declare_parameters(
+        namespace='',
+        parameters=[
+            ('use_gp', True),
+        ]
+        )
+        
+        
+        
         self.add_on_set_parameters_callback(self.parameter_callback)
         
     def update_current_state(self):
@@ -466,15 +479,22 @@ class OffboardControl(Node):
         
         
         for j in range(1, 2):
-            #parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
-            parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j],  np.zeros(3)), axis=None)
+            
+            if self.use_gp:
+                
+                parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
+            else:
+                parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
             
             self.ocp_solver.set(j, "p", parameters)
         
         
         for j in range(2, self.gp_prediction_horizon-1):
-            #parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
-            parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
+            if self.use_gp:
+            
+                parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
+            else:
+                parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
             
             self.ocp_solver.set(j, "p", parameters)
             
@@ -506,6 +526,8 @@ class OffboardControl(Node):
                 self.lenthscale = param.value
             elif param.name == "variance":
                 self.variance = param.value
+            elif param.name == "use_gp":
+                self.use_gp = param.value
          
                
         self.attitude_setpoint = functions.euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))        
@@ -588,10 +610,10 @@ class OffboardControl(Node):
             self.variance[axis] = gpmodel.rbf.variance[0]
             self.lengthscale[axis] = gpmodel.rbf.lengthscale[0]
          
-        if axis == 2:   
-            print('variance: {}'.format(self.variance[2]))
-            print('lengthscale: {}'.format(self.lengthscale[2]))
-            print('\n')   
+        #if axis == 2:   
+        #    print('variance: {}'.format(self.variance[2]))
+        #    print('lengthscale: {}'.format(self.lengthscale[2]))
+        #    print('\n')   
         self.counter += 1
         if self.counter == 3:
             self.counter = 0
@@ -1057,14 +1079,16 @@ class OffboardControl(Node):
                 simx_v_next = simx[1:, 7:10]
                 
                 pad = np.zeros(3)
-                #x_y = np.hstack((self.lin_acc_offset[1:,0:2], np.zeros((self.lin_acc_offset.shape[0]-1,1))))
-                #correction = np.vstack((pad, x_y))
+                x_y = np.hstack((self.lin_acc_offset[1:,0:2], np.zeros((self.lin_acc_offset.shape[0]-1,1))))
+                correction = np.vstack((pad, x_y))
                 
                 
-                correction = np.vstack((pad, self.lin_acc_offset[1:]))
-                correction[2:,0] = 0
-                
-                sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon) - correction
+                #correction = np.vstack((pad, self.lin_acc_offset[1:]))
+                #correction[2:,0] = 0
+                if self.use_gp:
+                    sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon) - correction
+                else:
+                    sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon)
                 self.mpc_prediction_history.append(sim_accel_pred_lin)
                 sim_accel_pred_lin = np.hstack((sim_accel_pred_lin, simx_v_next))
                 
@@ -1157,7 +1181,7 @@ class OffboardControl(Node):
                 
                 position_error = self.setpoint[0:3] - postition_average
                 
-                #print('Average deviation: {}'.format(position_error))
+                print('Average deviation: {}'.format(position_error))
                 
                 
                 
@@ -1197,7 +1221,7 @@ class OffboardControl(Node):
                 imu_sim.y = float(self.mpc_prediction_history[-2-backsteps][backsteps,1])
                 imu_sim.z = float(self.mpc_prediction_history[-2-backsteps][backsteps,2])
                 imu_gp.x =  float(self.mpc_prediction_history[-2-backsteps][backsteps,0] + x_error)
-                imu_gp.y =  float(self.variance[2])
+                imu_gp.y =  float(self.mpc_prediction_history[-2-backsteps][backsteps,1] + y_error)
                 imu_gp.z =  float(self.mpc_prediction_history[-2-backsteps][backsteps,2] + z_error)
                 
                 
