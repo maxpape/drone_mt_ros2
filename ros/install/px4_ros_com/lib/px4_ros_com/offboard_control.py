@@ -463,9 +463,18 @@ class OffboardControl(Node):
         
         parameters = np.concatenate((self.params, self.trajectory[0], np.zeros(6)), axis=None)
         self.ocp_solver.set(0, "p", parameters)  
-        for j in range(1, self.gp_prediction_horizon-1):
-            parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
-            #parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
+        
+        
+        for j in range(1, 2):
+            #parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
+            parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j],  np.zeros(3)), axis=None)
+            
+            self.ocp_solver.set(j, "p", parameters)
+        
+        
+        for j in range(2, self.gp_prediction_horizon-1):
+            #parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
+            parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
             
             self.ocp_solver.set(j, "p", parameters)
             
@@ -529,14 +538,30 @@ class OffboardControl(Node):
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1])
             kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
             kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+            gpmodel = GPy.models.GPRegression(x, y, kern)
+            gpmodel.Gaussian_noise.variance = 0.001
+            gpmodel.Gaussian_noise.variance.fix()
         elif axis == 1:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1])
             kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
             kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+            gpmodel = GPy.models.GPRegression(x, y, kern)
+            gpmodel.Gaussian_noise.variance = 0.001
+            gpmodel.Gaussian_noise.variance.fix()
         else:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1])
-            kern.variance.constrain_bounded(0.001, 0.005, warning=False)  # Set variance bounds
-            kern.lengthscale.constrain_bounded(0.0001, 0.005, warning=False)  # Set lengthscale bounds
+            kern = GPy.kern.RBF(input_dim=2, variance=0.03, lengthscale=0.1, active_dims=[0,1])
+            
+            kern.variance.constrain_bounded(0.015, 0.035, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(0.1, 20, warning=False)  # Set lengthscale bounds
+            
+            
+            #kern.variance.fix()
+            #kern.lengthscale.fix()
+            gpmodel = GPy.models.GPRegression(x, y, kern)
+            gpmodel.Gaussian_noise.variance = 0.0001
+            gpmodel.Gaussian_noise.variance.fix()
+            #kern.variance.constrain_bounded(0.001, 0.005, warning=False)  # Set variance bounds
+            #kern.lengthscale.constrain_bounded(0.0001, 0.005, warning=False)  # Set lengthscale bounds
             
         
         #rbf_kern.variance.constrain_bounded(0.05, 0.3, warning=False)  # Set variance bounds
@@ -553,9 +578,7 @@ class OffboardControl(Node):
         #mean_function = GPy.mappings.Constant(input_dim=2, output_dim=1, value=data_mean)
         
         
-        gpmodel = GPy.models.GPRegression(x, y, kern)
-        gpmodel.Gaussian_noise.variance = 0.001
-        gpmodel.Gaussian_noise.variance.fix()
+        
         
         # Optimize the model parameters
         if self.counter == axis:
@@ -564,10 +587,11 @@ class OffboardControl(Node):
             
             self.variance[axis] = gpmodel.rbf.variance[0]
             self.lengthscale[axis] = gpmodel.rbf.lengthscale[0]
-            
-        print('variance: {}'.format(self.variance[2]))
-        print('lengthscale: {}'.format(self.lengthscale[2]))
-        print('\n')   
+         
+        if axis == 2:   
+            print('variance: {}'.format(self.variance[2]))
+            print('lengthscale: {}'.format(self.lengthscale[2]))
+            print('\n')   
         self.counter += 1
         if self.counter == 3:
             self.counter = 0
@@ -1033,9 +1057,14 @@ class OffboardControl(Node):
                 simx_v_next = simx[1:, 7:10]
                 
                 pad = np.zeros(3)
-                x_y = np.hstack((self.lin_acc_offset[1:,0:2], np.zeros((self.lin_acc_offset.shape[0]-1,1))))
-                correction = np.vstack((pad, x_y))
-                sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon)
+                #x_y = np.hstack((self.lin_acc_offset[1:,0:2], np.zeros((self.lin_acc_offset.shape[0]-1,1))))
+                #correction = np.vstack((pad, x_y))
+                
+                
+                correction = np.vstack((pad, self.lin_acc_offset[1:]))
+                correction[2:,0] = 0
+                
+                sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon) - correction
                 self.mpc_prediction_history.append(sim_accel_pred_lin)
                 sim_accel_pred_lin = np.hstack((sim_accel_pred_lin, simx_v_next))
                 
@@ -1168,7 +1197,7 @@ class OffboardControl(Node):
                 imu_sim.y = float(self.mpc_prediction_history[-2-backsteps][backsteps,1])
                 imu_sim.z = float(self.mpc_prediction_history[-2-backsteps][backsteps,2])
                 imu_gp.x =  float(self.mpc_prediction_history[-2-backsteps][backsteps,0] + x_error)
-                imu_gp.y =  float(self.mpc_prediction_history[-2-backsteps][backsteps,1] + y_error)
+                imu_gp.y =  float(self.variance[2])
                 imu_gp.z =  float(self.mpc_prediction_history[-2-backsteps][backsteps,2] + z_error)
                 
                 
