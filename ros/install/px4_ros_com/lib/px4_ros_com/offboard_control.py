@@ -240,8 +240,8 @@ class OffboardControl(Node):
         
         # GP model and parameters
         # gp parameters
-        self.lengthscale = np.array([0.05, 0.05, 0.05])
-        self.variance = np.array([0.8, 0.8, 0.8])
+        self.lengthscale = np.array([0.05, 0.05, 0.05, 0.01, 0.01, 0.01])
+        self.variance = np.array([0.8, 0.8, 0.8, 0.8, 0.8, 0.8])
         self.kernel = GPy.kern.RBF(input_dim=2, variance=self.variance[0], lengthscale=self.lengthscale[0])
         #k2 = GPy.kern.Linear(input_dim=1, variances=1)
         #kernel = k1*k2
@@ -549,8 +549,8 @@ class OffboardControl(Node):
                 self.use_ard = param.value
             elif param.name == "online_regression":
                 self.online_regression = param.value
-                self.lengthscale = np.array([0.05, 0.05, 0.05])
-                self.variance = np.array([0.8, 0.8, 0.8])
+                self.lengthscale = np.array([0.05, 0.05, 0.05, 0.01, 0.01, 0.01])
+                self.variance = np.array([0.8, 0.8, 0.8, 0.8, 0.8, 0.8])
             elif param.name == "backsteps_plot":
                 self.backsteps_plot = param.value
             elif param.name == "show_lin":
@@ -567,7 +567,7 @@ class OffboardControl(Node):
         return SetParametersResult(successful=True)
 
     
-    def predict_next_y(self, x, y, new_x, axis):
+    def predict_next_y(self, x, y, new_x, axis, type):
         """
         Predict the next y for a given x using GPy.
 
@@ -580,23 +580,25 @@ class OffboardControl(Node):
         numpy array: Predicted output for the new input.
         """
         # Create a GPRegression model with an RBF kernel
- 
+        type_dict = {"lin": 0,
+                    "ang": 3,
+                    }
         
-        if axis == 0:
+        if (axis+type_dict[type]) == 0:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1], ARD=self.use_ard)
             kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
             kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.001
             gpmodel.Gaussian_noise.variance.fix()
-        elif axis == 1:
+        elif (axis+type_dict[type]) == 1:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1], ARD=self.use_ard)
             kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
             kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.001
             gpmodel.Gaussian_noise.variance.fix()
-        else:
+        elif (axis+type_dict[type]) == 2:
             kern = GPy.kern.RBF(input_dim=2, variance=0.03, lengthscale=0.1, active_dims=[0,1])
             
             kern.variance.constrain_bounded(0.015, 0.035, warning=False)  # Set variance bounds
@@ -610,7 +612,29 @@ class OffboardControl(Node):
             gpmodel.Gaussian_noise.variance.fix()
             #kern.variance.constrain_bounded(0.001, 0.005, warning=False)  # Set variance bounds
             #kern.lengthscale.constrain_bounded(0.0001, 0.005, warning=False)  # Set lengthscale bounds
+        elif (axis+type_dict[type]) == 3:
+            kern = GPy.kern.RBF(input_dim=2, variance=self.variance[3], lengthscale=self.lengthscale[3], active_dims=[0,1], ARD=self.use_ard)
+            kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+            gpmodel = GPy.models.GPRegression(x, y, kern)
+            gpmodel.Gaussian_noise.variance = 0.001
+            gpmodel.Gaussian_noise.variance.fix() 
             
+        elif (axis+type_dict[type]) == 4:
+            kern = GPy.kern.RBF(input_dim=2, variance=self.variance[4], lengthscale=self.lengthscale[4], active_dims=[0,1], ARD=self.use_ard)
+            kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+            gpmodel = GPy.models.GPRegression(x, y, kern)
+            gpmodel.Gaussian_noise.variance = 0.001
+            gpmodel.Gaussian_noise.variance.fix() 
+            
+        elif (axis+type_dict[type]) == 5:
+            kern = GPy.kern.RBF(input_dim=2, variance=self.variance[5], lengthscale=self.lengthscale[5], active_dims=[0,1], ARD=self.use_ard)
+            kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+            gpmodel = GPy.models.GPRegression(x, y, kern)
+            gpmodel.Gaussian_noise.variance = 0.001
+            gpmodel.Gaussian_noise.variance.fix()   
         
         #rbf_kern.variance.constrain_bounded(0.05, 0.3, warning=False)  # Set variance bounds
         #rbf_kern.lengthscale.constrain_bounded(0.04, 0.07, warning=False)  # Set lengthscale bounds
@@ -627,20 +651,28 @@ class OffboardControl(Node):
 
         
         # Optimize the model parameters
-        if self.counter == axis:
+        if self.counter == (axis+type_dict[type]):
             if self.online_regression:
                 gpmodel.optimize()
             
             
-            self.variance[axis] = gpmodel.rbf.variance[0]
-            self.lengthscale[axis] = gpmodel.rbf.lengthscale[0]
+            self.variance[int(axis+type_dict[type])] = gpmodel.rbf.variance[0]
+            self.lengthscale[int(axis+type_dict[type])] = gpmodel.rbf.lengthscale[0]
+            
+            if type == 'ang' and axis == 0:
+                print(gpmodel.rbf.lengthscale)
+                #print(int(axis+type_dict[type]))
+                #print('Lengthscale: {}'.format(self.lengthscale[int(axis+type_dict[type])]))
+                #print('Variance: {}'.format(self.variance[int(axis+type_dict[type])]))
+            
+                
          
         #if axis == 2:   
         #    print('variance: {}'.format(self.variance[2]))
         #    print('lengthscale: {}'.format(self.lengthscale[2]))
         #    print('\n')   
         self.counter += 1
-        if self.counter == 3:
+        if self.counter == 6:
             self.counter = 0
         
         #print('bias variance: {}'.format(self.gpmodel.sum.bias.variance[0]))
@@ -1135,9 +1167,9 @@ class OffboardControl(Node):
                 
                 
                 
-                gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,(0,3)], real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3)], axis=0)
-                gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,(1,4)], real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)], axis=1)
-                gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,(2,5)], real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2)
+                gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,(0,3)], real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3)], axis=0, type='lin')
+                gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,(1,4)], real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)], axis=1, type='lin')
+                gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,(2,5)], real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2, type='lin')
                 #gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,0].reshape(-1,1), real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,0].reshape(-1,1), axis=0)
                 #gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,1].reshape(-1,1), real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,1].reshape(-1,1), axis=1)
                 #gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,2].reshape(-1,1), real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,2].reshape(-1,1), axis=2)
@@ -1158,9 +1190,9 @@ class OffboardControl(Node):
                 sim_hist_ang = np.nan_to_num(np.asarray(list(self.sim_imu_ang_history)[1:])[:, 0:6], nan=0)
                 sim_accel_pred_ang_ext = np.vstack((sim_accel_pred_ang, self.sim_imu_ang_history[-2][0:6]))
                 
-                gp_prediction_ang_x = self.predict_next_y(sim_hist_ang[:,(0,3)], real_hist_ang[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3)], axis=0)
-                gp_prediction_ang_y = self.predict_next_y(sim_hist_ang[:,(1,4)], real_hist_ang[:,1].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4)], axis=1)
-                gp_prediction_ang_z = self.predict_next_y(sim_hist_ang[:,(2,5)], real_hist_ang[:,2].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5)], axis=2)
+                gp_prediction_ang_x = self.predict_next_y(sim_hist_ang[:,(0,3)], real_hist_ang[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3)], axis=0, type='ang')
+                gp_prediction_ang_y = self.predict_next_y(sim_hist_ang[:,(1,4)], real_hist_ang[:,1].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4)], axis=1, type='ang')
+                gp_prediction_ang_z = self.predict_next_y(sim_hist_ang[:,(2,5)], real_hist_ang[:,2].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5)], axis=2, type='ang')
                 
                 # calculate offset from prediction of GP and MPC
                 ang_acc_offset = np.hstack((gp_prediction_ang_x[:-1,0].reshape(-1,1), gp_prediction_ang_y[:-1,0].reshape(-1,1), gp_prediction_ang_z[:-1,0].reshape(-1,1)))
@@ -1175,7 +1207,7 @@ class OffboardControl(Node):
                 
                 position_error = self.setpoint[0:3] - postition_average
                 
-                print('Average deviation: {}'.format(position_error))
+                #print('Average deviation: {}'.format(position_error))
                 
                 
                 
