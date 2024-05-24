@@ -1,7 +1,7 @@
 {
     "acados_include_path": "/drone_mt_ros2/acados/include",
     "acados_lib_path": "/drone_mt_ros2/acados/lib",
-    "code_export_directory": "/drone_mt_ros2/c_generated_code",
+    "code_export_directory": "/drone_mt_ros2/ros/src/px4_ros_com/src/examples/offboard_py/c_generated_code",
     "constraints": {
         "C": [],
         "C_e": [],

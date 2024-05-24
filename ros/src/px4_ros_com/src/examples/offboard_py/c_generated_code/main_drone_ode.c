@@ -43,6 +43,7 @@
 #include "blasfeo/include/blasfeo_d_aux_ext_dep.h"
 
 #define NX     DRONE_ODE_NX
+#define NP     DRONE_ODE_NP
 #define NU     DRONE_ODE_NU
 #define NBX0   DRONE_ODE_NBX0
 
@@ -99,14 +100,14 @@ int main()
     ubx0[11] = 0;
     lbx0[12] = 0;
     ubx0[12] = 0;
-    lbx0[13] = 0;
-    ubx0[13] = 0;
-    lbx0[14] = 0;
-    ubx0[14] = 0;
-    lbx0[15] = 0;
-    ubx0[15] = 0;
-    lbx0[16] = 0;
-    ubx0[16] = 0;
+    lbx0[13] = 3.67875;
+    ubx0[13] = 3.67875;
+    lbx0[14] = 3.67875;
+    ubx0[14] = 3.67875;
+    lbx0[15] = 3.67875;
+    ubx0[15] = 3.67875;
+    lbx0[16] = 3.67875;
+    ubx0[16] = 3.67875;
 
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "lbx", lbx0);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "ubx", ubx0);
