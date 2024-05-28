@@ -72,6 +72,40 @@ def generate_trajectory(points, d_points, d_yaw):
     trajectory.append(points[-1])
     return np.asarray(trajectory)
 
+def generate_circle_trajectory(start, center, radius, d_points, yaw):
+    
+    
+    n = int(np.ceil(2*np.pi*radius/d_points))
+    x = center[0]
+    y = center[1]
+    z = center[2]
+    #noise = np.random.normal(0, 0.05, (n, 2))
+    points = np.array([radius*np.cos(np.linspace(0, 2*np.pi, n))+x,
+                       radius*np.sin(np.linspace(0, 2*np.pi, n))+y,
+                       np.ones(n)*z]).T
+    yaw = np.ones((n, 4)) * functions.euler_to_quaternion_numpy(np.array([0,0,yaw]))
+    
+    return np.hstack((points, yaw))
+
+def find_closest_point(a, b):
+    """
+    Find the index of the point in array b that is closest to the point in array a.
+
+    Parameters:
+    a (numpy.ndarray): A 1D array representing a single point in 3D (shape: (3,))
+    b (numpy.ndarray): A 2D array representing multiple points in 3D (shape: (n, 3))
+
+    Returns:
+    int: The index of the closest point in array b
+    """
+    # Calculate the squared differences between the point a and each point in b
+    squared_diffs = np.sum((b - a) ** 2, axis=1)
+    
+    # Find the index of the minimum squared difference
+    closest_index = np.argmin(squared_diffs)
+    
+    return closest_index
+
 
 
     
@@ -146,6 +180,11 @@ class OffboardControl(Node):
             VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
 
         self.counter = 0
+        self.fly_circle = False
+        self.init_circle = True
+        self.circle_radius = 2.0
+        self.circle_center = np.array([0,0,2])
+        
 
         # Initialize variables
         self.offboard_setpoint_counter = 0
@@ -402,7 +441,8 @@ class OffboardControl(Node):
             ('use_ard', False),
             ('online_regression', False),
             ('backsteps_plot', 0, int_range_descriptor),
-            ('show_lin', True) 
+            ('show_lin', True),
+            ('fly_circle', False) 
         ]
         )
         
@@ -472,8 +512,34 @@ class OffboardControl(Node):
                     break
         
         
-        start = np.concatenate((self.position, self.attitude), axis=None)
-        self.trajectory = generate_trajectory(np.vstack((start, self.setpoints)), dist_points*0.70, 10)
+        
+        
+        if not self.fly_circle:
+            start = np.concatenate((self.position, self.attitude), axis=None)
+            self.trajectory = generate_trajectory(np.vstack((start, self.setpoints)), dist_points*0.70, 10)
+            
+        else:
+            if self.init_circle:
+                start = self.current_state[0:3]
+                self.circle_center = start + np.array([-self.circle_radius, 0, 0])
+                yaw = functions.quaternion_to_euler_numpy(self.attitude)[2]
+                self.trajectory = generate_circle_trajectory(start, self.circle_center, self.circle_radius, dist_points*0.70, yaw)
+                print(self.trajectory)
+                self.init_circle = False
+            
+            #if self.circle_traj_index >= len(self.trajectory):
+            #    self.circle_traj_index = 0
+            
+            reached = is_setpoint_reached(self.trajectory[1], self.current_state[0:3], self.attitude, dist_points*1.5, 11)
+            if reached:
+                #self.circle_traj_index += i
+                a, b = self.trajectory[1:], self.trajectory[0]
+                self.trajectory = np.vstack((a, b))
+            
+        #print(self.trajectory[0])
+            
+            
+                
         
         
         if len(self.trajectory) <= self.N_horizon:
@@ -483,15 +549,15 @@ class OffboardControl(Node):
             
             filler = np.full((dim+2,7), last_elem)
             
-            self.trajectory = np.vstack((self.trajectory , filler))
+            trajectory = np.vstack((self.trajectory , filler))
         
         if len(self.trajectory) > self.N_horizon:
-            self.trajectory = self.trajectory[0:self.N_horizon+2]
+            trajectory = self.trajectory[0:self.N_horizon+2]
             
         
                 
         
-        parameters = np.concatenate((self.params, self.trajectory[0], np.zeros(6)), axis=None)
+        parameters = np.concatenate((self.params, trajectory[0], np.zeros(6)), axis=None)
         self.ocp_solver.set(0, "p", parameters)  
         
         
@@ -499,9 +565,9 @@ class OffboardControl(Node):
             
             if self.use_gp:
                 
-                parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
+                parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
             else:
-                parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
+                parameters = np.concatenate((self.params, trajectory[j],  np.zeros(6)), axis=None)
             
             self.ocp_solver.set(j, "p", parameters)
         
@@ -509,18 +575,18 @@ class OffboardControl(Node):
         for j in range(2, self.gp_prediction_horizon-1):
             if self.use_gp:
             
-                parameters = np.concatenate((self.params, self.trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
+                parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
             else:
-                parameters = np.concatenate((self.params, self.trajectory[j],  np.zeros(6)), axis=None)
+                parameters = np.concatenate((self.params, trajectory[j],  np.zeros(6)), axis=None)
             
             self.ocp_solver.set(j, "p", parameters)
             
         for j in range(self.gp_prediction_horizon-1, self.N_horizon):
-            parameters = np.concatenate((self.params, self.trajectory[j], np.zeros(6)), axis=None)
+            parameters = np.concatenate((self.params, trajectory[j], np.zeros(6)), axis=None)
             
             self.ocp_solver.set(j, "p", parameters)
         
-        parameters = np.concatenate((self.params, self.trajectory[self.N_horizon], np.zeros(6)), axis=None)
+        parameters = np.concatenate((self.params, trajectory[self.N_horizon], np.zeros(6)), axis=None)
         self.ocp_solver.set(self.N_horizon, "p", parameters)  
     
     
@@ -555,6 +621,14 @@ class OffboardControl(Node):
                 self.backsteps_plot = param.value
             elif param.name == "show_lin":
                 self.show_lin = param.value
+            elif param.name == "fly_circle":
+                if param.value:
+                    self.fly_circle = True
+                    self.init_circle = True
+                else:
+                    self.fly_circle = False
+                    self.init_circle = False
+                    
          
                
         self.attitude_setpoint = functions.euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))        
@@ -659,8 +733,8 @@ class OffboardControl(Node):
             self.variance[int(axis+type_dict[type])] = gpmodel.rbf.variance[0]
             self.lengthscale[int(axis+type_dict[type])] = gpmodel.rbf.lengthscale[0]
             
-            if type == 'ang' and axis == 0:
-                print(gpmodel.rbf.lengthscale)
+            #if type == 'ang' and axis == 0:
+            #    print(gpmodel.rbf.lengthscale)
                 #print(int(axis+type_dict[type]))
                 #print('Lengthscale: {}'.format(self.lengthscale[int(axis+type_dict[type])]))
                 #print('Variance: {}'.format(self.variance[int(axis+type_dict[type])]))
