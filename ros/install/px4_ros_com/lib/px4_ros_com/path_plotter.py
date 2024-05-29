@@ -8,6 +8,7 @@ from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPo
 from px4_msgs.msg import VehicleOdometry
 import collections
 import functions
+import numpy as np
 
 class PathPlotter(Node):
     def __init__(self) -> None:
@@ -26,21 +27,25 @@ class PathPlotter(Node):
         self.reverence_subscriber = self.create_subscription(
             Vector3, 'reference_traj', self.update_ref, qos_profile)
         
-        self.x_coords = collections.deque(maxlen=6000)
-        self.y_coords = collections.deque(maxlen=6000)
-        self.z_coords = collections.deque(maxlen=6000)
+        buffer_length = 100
         
-        self.x_coords_ref = collections.deque(maxlen=6000)
-        self.y_coords_ref = collections.deque(maxlen=6000)
-        self.z_coords_ref = collections.deque(maxlen=6000)
+        self.x_coords = collections.deque(maxlen=buffer_length)
+        self.y_coords = collections.deque(maxlen=buffer_length)
+        self.z_coords = collections.deque(maxlen=buffer_length)
+        
+        self.x_coords_ref = collections.deque(maxlen=buffer_length)
+        self.y_coords_ref = collections.deque(maxlen=buffer_length)
+        self.z_coords_ref = collections.deque(maxlen=buffer_length)
 
         self.fig, self.ax = plt.subplots()
         self.ax = self.fig.add_subplot(111, projection='3d')
         self.line = self.ax.plot([], [], [], 'r-')[0]
         self.line_ref = self.ax.plot([], [], [], 'b-')[0]
+        plt.legend()
         plt.ion()
         plt.show()
     def update_ref(self, msg):
+        
         
         self.x_coords_ref.append(msg.x)
         self.y_coords_ref.append(msg.y)
@@ -55,13 +60,14 @@ class PathPlotter(Node):
         self.z_coords.append(pos[2])
         
         
+        
         self.line.set_data(self.x_coords, self.y_coords)
         self.line.set_3d_properties(self.z_coords)
-        self.line_ref.set_data(self.x_coords, self.y_coords)
-        self.line_ref.set_3d_properties(self.z_coords)
+        self.line_ref.set_data(self.x_coords_ref, self.y_coords_ref)
+        self.line_ref.set_3d_properties(self.z_coords_ref)
 
-        self.ax.set_xlim(-5, 5)
-        self.ax.set_ylim(-5, 5)
+        self.ax.set_xlim(-6, 2)
+        self.ax.set_ylim(-4, 4)
         self.ax.set_zlim(0, 5)
 
         self.fig.canvas.draw()

@@ -27,7 +27,7 @@ class PathPlotter(Node):
         self.reverence_subscriber = self.create_subscription(
             Vector3, 'reference_traj', self.update_ref, qos_profile)
         
-        buffer_length = 1000
+        buffer_length = 100
         
         self.x_coords = collections.deque(maxlen=buffer_length)
         self.y_coords = collections.deque(maxlen=buffer_length)
@@ -66,8 +66,8 @@ class PathPlotter(Node):
         self.line_ref.set_data(self.x_coords_ref, self.y_coords_ref)
         self.line_ref.set_3d_properties(self.z_coords_ref)
 
-        self.ax.set_xlim(-5, 5)
-        self.ax.set_ylim(-5, 5)
+        self.ax.set_xlim(-6, 2)
+        self.ax.set_ylim(-4, 4)
         self.ax.set_zlim(0, 5)
 
         self.fig.canvas.draw()

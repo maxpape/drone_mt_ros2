@@ -527,6 +527,13 @@ class OffboardControl(Node):
             start = np.concatenate((self.position, self.attitude), axis=None)
             self.trajectory = generate_trajectory(np.vstack((start, self.setpoints)), dist_points*0.70, 10)
             
+            reference = Vector3()
+              
+            reference.x = self.setpoints[0][0]
+            reference.y = self.setpoints[0][1]
+            reference.z = self.setpoints[0][2]
+            self.reference_pub.publish(reference) 
+            
         else:
             if self.init_circle:
                 start = self.current_state[0:3]
@@ -547,14 +554,14 @@ class OffboardControl(Node):
             reference.x = self.trajectory[0][0]
             reference.y = self.trajectory[0][1]
             reference.z = self.trajectory[0][2]
-            self.reference_pub.publish(reference)    
+            self.reference_pub.publish(reference) 
             
             a, b = self.trajectory[1:], self.trajectory[0]
             self.trajectory = np.vstack((a, b))
                 
                 
             
-        #print(self.trajectory[0])
+        
             
             
                 
@@ -624,17 +631,17 @@ class OffboardControl(Node):
             elif param.name == "yaw":
                 self.yaw_setpoint = param.value
             elif param.name == "lengthscale":
-                self.lenthscale = param.value
+                self.lengthscale[:] = param.value
             elif param.name == "variance":
-                self.variance = param.value
+                self.variance[:] = param.value
             elif param.name == "use_gp":
                 self.use_gp = param.value
             elif param.name == "use_ard":
                 self.use_ard = param.value
             elif param.name == "online_regression":
                 self.online_regression = param.value
-                self.lengthscale = np.array([0.05, 0.05, 0.05, 0.01, 0.01, 0.01])
-                self.variance = np.array([0.8, 0.8, 0.8, 0.8, 0.8, 0.8])
+                self.lengthscale = np.array([2, 2, 2, 0.01, 0.01, 0.01])
+                self.variance = np.array([1, 1, 1, 0.8, 0.8, 0.8])
             elif param.name == "backsteps_plot":
                 self.backsteps_plot = param.value
             elif param.name == "show_lin":
@@ -678,23 +685,23 @@ class OffboardControl(Node):
         
         if (axis+type_dict[type]) == 0:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1], ARD=self.use_ard)
-            kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
-            kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+            #kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
+            #kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.001
             gpmodel.Gaussian_noise.variance.fix()
         elif (axis+type_dict[type]) == 1:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1], ARD=self.use_ard)
-            kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
-            kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+            #kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
+            #kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.001
             gpmodel.Gaussian_noise.variance.fix()
         elif (axis+type_dict[type]) == 2:
             kern = GPy.kern.RBF(input_dim=2, variance=0.03, lengthscale=0.1, active_dims=[0,1])
             
-            kern.variance.constrain_bounded(0.015, 0.035, warning=False)  # Set variance bounds
-            kern.lengthscale.constrain_bounded(0.1, 20, warning=False)  # Set lengthscale bounds
+            #kern.variance.constrain_bounded(0.015, 0.035, warning=False)  # Set variance bounds
+            #kern.lengthscale.constrain_bounded(0.1, 20, warning=False)  # Set lengthscale bounds
             
             
             #kern.variance.fix()
@@ -799,7 +806,7 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([7,7,200])*5
+        Q_p= np.diag([40,40,200])*5
         Q_q= np.eye(1)*100
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
