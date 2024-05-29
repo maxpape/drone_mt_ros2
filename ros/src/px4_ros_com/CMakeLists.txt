@@ -124,6 +124,7 @@ install(PROGRAMS
   src/examples/offboard_py/offboard_control.py
   src/examples/offboard_py/functions.py
   src/examples/offboard_py/drone_model.py
+  src/examples/offboard_py/path_plotter.py
   DESTINATION lib/${PROJECT_NAME}
 )
 

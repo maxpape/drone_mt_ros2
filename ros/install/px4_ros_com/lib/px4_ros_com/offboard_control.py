@@ -39,6 +39,11 @@ def is_setpoint_reached(setpoint, position, attitude, threshold_pos, threshold_a
     attitude_error = functions.quaternion_error_numpy(setpoint_attitude, attitude)
     yaw_error = np.abs(functions.quaternion_to_euler_numpy(attitude_error)[2])
     
+    print('Position: {}'.format(position))
+    print('Setpoint: {}'.format(setpoint_position))
+    print('Distance: {}'.format(distance))
+    print('\n')
+    
     #if (distance <= threshold_pos) and (yaw_error <= threshold_att):
     if (distance <= threshold_pos):
         return True
@@ -75,17 +80,18 @@ def generate_trajectory(points, d_points, d_yaw):
 def generate_circle_trajectory(start, center, radius, d_points, yaw):
     
     
-    n = int(np.ceil(2*np.pi*radius/d_points))
+    n = int(np.ceil(2*np.pi*radius/d_points))+1
     x = center[0]
     y = center[1]
     z = center[2]
+    
     #noise = np.random.normal(0, 0.05, (n, 2))
     points = np.array([radius*np.cos(np.linspace(0, 2*np.pi, n))+x,
                        radius*np.sin(np.linspace(0, 2*np.pi, n))+y,
                        np.ones(n)*z]).T
-    yaw = np.ones((n, 4)) * functions.euler_to_quaternion_numpy(np.array([0,0,yaw]))
+    yaw = np.ones((n-1, 4)) * functions.euler_to_quaternion_numpy(np.array([0,0,yaw]))
     
-    return np.hstack((points, yaw))
+    return np.hstack((points[:-1], yaw))
 
 def find_closest_point(a, b):
     """
@@ -166,6 +172,8 @@ class OffboardControl(Node):
             Vector3, '/imu_data_sim', qos_profile)
         self.imu_pub_gp = self.create_publisher(
             Vector3, '/imu_data_gp', qos_profile)
+        self.reference_pub = self.create_publisher(
+            Vector3, '/reference_traj', qos_profile)
 
         # Create subscribers
         self.vehicle_status_subscriber = self.create_subscription(
@@ -180,6 +188,7 @@ class OffboardControl(Node):
             VehicleLocalPosition, '/fmu/out/vehicle_local_position', self.vehicle_local_position_callback, qos_profile)
 
         self.counter = 0
+        self.counter_2 = 0
         self.fly_circle = False
         self.init_circle = True
         self.circle_radius = 2.0
@@ -523,18 +532,27 @@ class OffboardControl(Node):
                 start = self.current_state[0:3]
                 self.circle_center = start + np.array([-self.circle_radius, 0, 0])
                 yaw = functions.quaternion_to_euler_numpy(self.attitude)[2]
-                self.trajectory = generate_circle_trajectory(start, self.circle_center, self.circle_radius, dist_points*0.70, yaw)
-                print(self.trajectory)
+                self.trajectory = generate_circle_trajectory(start, self.circle_center, self.circle_radius, dist_points*0.65, yaw)
+                
                 self.init_circle = False
-            
+                
             #if self.circle_traj_index >= len(self.trajectory):
             #    self.circle_traj_index = 0
             
-            reached = is_setpoint_reached(self.trajectory[1], self.current_state[0:3], self.attitude, dist_points*1.5, 11)
-            if reached:
+            #reached = is_setpoint_reached(self.trajectory[0], self.current_state[0:3], self.attitude, dist_points*0.70, 11)
+            
                 #self.circle_traj_index += i
-                a, b = self.trajectory[1:], self.trajectory[0]
-                self.trajectory = np.vstack((a, b))
+            reference = Vector3()
+              
+            reference.x = self.trajectory[0][0]
+            reference.y = self.trajectory[0][1]
+            reference.z = self.trajectory[0][2]
+            self.reference_pub.publish(reference)    
+            
+            a, b = self.trajectory[1:], self.trajectory[0]
+            self.trajectory = np.vstack((a, b))
+                
+                
             
         #print(self.trajectory[0])
             
