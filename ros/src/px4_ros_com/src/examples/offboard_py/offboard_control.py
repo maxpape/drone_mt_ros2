@@ -685,15 +685,15 @@ class OffboardControl(Node):
         
         if (axis+type_dict[type]) == 0:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+            kern.variance.constrain_bounded(0.01, 4.2, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.001
             gpmodel.Gaussian_noise.variance.fix()
         elif (axis+type_dict[type]) == 1:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+            kern.variance.constrain_bounded(0.01, 4.2, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.001
             gpmodel.Gaussian_noise.variance.fix()
@@ -907,9 +907,9 @@ class OffboardControl(Node):
         """
         
         m0 = motor_output.output[0]
-        m1 = motor_output.output[1]
-        m2 = motor_output.output[2]
-        m3 = motor_output.output[3]
+        m2 = motor_output.output[1]
+        m3 = motor_output.output[2]
+        m1 = motor_output.output[3]
         
         thrust = np.zeros(4)
         
@@ -1289,9 +1289,13 @@ class OffboardControl(Node):
                 sim_hist_ang = np.nan_to_num(np.asarray(list(self.sim_imu_ang_history)[1:])[:, 0:6], nan=0)
                 sim_accel_pred_ang_ext = np.vstack((sim_accel_pred_ang, self.sim_imu_ang_history[-2][0:6]))
                 
-                gp_prediction_ang_x = self.predict_next_y(sim_hist_ang[:,(0,3)], real_hist_ang[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3)], axis=0, type='ang')
-                gp_prediction_ang_y = self.predict_next_y(sim_hist_ang[:,(1,4)], real_hist_ang[:,1].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4)], axis=1, type='ang')
-                gp_prediction_ang_z = self.predict_next_y(sim_hist_ang[:,(2,5)], real_hist_ang[:,2].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5)], axis=2, type='ang')
+                gp_prediction_ang_x = gp_prediction_lin_x
+                gp_prediction_ang_y = gp_prediction_lin_y
+                gp_prediction_ang_z = gp_prediction_lin_z
+                
+                #gp_prediction_ang_x = self.predict_next_y(sim_hist_ang[:,(0,3)], real_hist_ang[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3)], axis=0, type='ang')
+                #gp_prediction_ang_y = self.predict_next_y(sim_hist_ang[:,(1,4)], real_hist_ang[:,1].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4)], axis=1, type='ang')
+                #gp_prediction_ang_z = self.predict_next_y(sim_hist_ang[:,(2,5)], real_hist_ang[:,2].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5)], axis=2, type='ang')
                 
                 # calculate offset from prediction of GP and MPC
                 ang_acc_offset = np.hstack((gp_prediction_ang_x[:-1,0].reshape(-1,1), gp_prediction_ang_y[:-1,0].reshape(-1,1), gp_prediction_ang_z[:-1,0].reshape(-1,1)))
