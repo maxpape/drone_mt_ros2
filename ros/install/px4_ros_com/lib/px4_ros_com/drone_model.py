@@ -81,8 +81,8 @@ def export_drone_ode_model() -> AcadosModel:
 
     # thrust allocation matrix
     P = vertcat(
-        horzcat(-d_x0, -d_x1, +d_x2, +d_x3),
-        horzcat(-d_y0, +d_y1, +d_y2, -d_y3),
+        horzcat(-d_x0, +d_x1, +d_x2, -d_x3),
+        horzcat(-d_y0, +d_y1, -d_y2, +d_y3),
         horzcat(-c_tau, c_tau, -c_tau, c_tau),
     )
 

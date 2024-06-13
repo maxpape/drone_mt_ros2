@@ -907,9 +907,9 @@ class OffboardControl(Node):
         """
         
         m0 = motor_output.output[0]
-        m2 = motor_output.output[1]
-        m3 = motor_output.output[2]
-        m1 = motor_output.output[3]
+        m1 = motor_output.output[1]
+        m2 = motor_output.output[2]
+        m3 = motor_output.output[3]
         
         thrust = np.zeros(4)
         
@@ -1056,9 +1056,9 @@ class OffboardControl(Node):
         
         # correct motor mapping: difference from paper to PX4
         msg.control[0] = control[0]  # Motor 1
-        msg.control[1] = control[2]  # Motor 2
-        msg.control[2] = control[3]  # Motor 3
-        msg.control[3] = control[1]  # Motor 4
+        msg.control[1] = control[1]  # Motor 2
+        msg.control[2] = control[2]  # Motor 3
+        msg.control[3] = control[3]  # Motor 4
         
         self.motor_command_publisher.publish(msg)
         
