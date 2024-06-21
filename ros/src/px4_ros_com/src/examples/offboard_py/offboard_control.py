@@ -1285,8 +1285,8 @@ class OffboardControl(Node):
                 
                 
                 ## prediction of angular acceleration error
-                real_hist_ang = np.nan_to_num(np.asarray(list(self.imu_history)[:-1])[:, 6:12], nan=0)
-                sim_hist_ang = np.nan_to_num(np.asarray(list(self.sim_imu_ang_history)[1:])[:, 0:6], nan=0)
+                real_hist_ang = np.nan_to_num(np.asarray(list(self.imu_history)[1:])[:, 6:12], nan=0)
+                sim_hist_ang = np.nan_to_num(np.asarray(list(self.sim_imu_ang_history)[:-1])[:, 0:6], nan=0)
                 sim_accel_pred_ang_ext = np.vstack((sim_accel_pred_ang, self.sim_imu_ang_history[-2][0:6]))
                 
                 gp_prediction_ang_x = gp_prediction_lin_x
