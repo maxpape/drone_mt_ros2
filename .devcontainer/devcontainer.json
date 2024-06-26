@@ -4,7 +4,8 @@
   "runArgs": [
     "--privileged",
     "--network=host", 
-    "--device=/dev/dri:/dev/dri"
+    "--device=/dev/dri:/dev/dri",
+    "--device=/dev/ttyUSB0:/dev/ttyUSB0"
   ],
   "workspaceMount": "source=${localWorkspaceFolder},target=/${localWorkspaceFolderBasename},type=bind",
   "workspaceFolder": "/${localWorkspaceFolderBasename}",
