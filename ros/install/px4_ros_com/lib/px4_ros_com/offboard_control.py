@@ -15,6 +15,7 @@ from casadi import SX, vertcat, Function, sqrt, norm_2, dot, cross, atan2, if_el
 import spatial_casadi as sc
 from scipy.spatial.transform import Rotation as R
 from scipy.interpolate import splev, splprep
+from scipy.integrate import quad
 from rclpy.node import Node
 from rclpy.qos import QoSProfile, ReliabilityPolicy, HistoryPolicy, DurabilityPolicy
 from px4_msgs.msg import OffboardControlMode, VehicleCommand, VehicleStatus, ActuatorMotors, VehicleOdometry, ActuatorOutputs, SensorCombined, VehicleLocalPosition
@@ -89,6 +90,63 @@ def generate_circle_trajectory(start, center, radius, d_points, yaw):
     yaw = np.ones((n-1, 4)) * functions.euler_to_quaternion_numpy(np.array([0,0,yaw]))
     
     return np.hstack((points[:-1], yaw))
+
+
+def figure_8_arc_length(radius):
+    """
+    Calculate the arc length of the figure 8 curve.
+    
+    Parameters:
+    radius (float): Radius of one of the loops of the figure 8.
+    
+    Returns:
+    float: The arc length of the figure 8 curve.
+    """
+    integrand = lambda t: np.sqrt(1 + np.cos(t)**2 + 4 * np.cos(t)**2 * np.sin(t)**2)
+    arc_length, _ = quad(integrand, 0, 2 * np.pi)
+    return arc_length * radius
+
+def generate_figure_8_trajectory(center, radius, d_points, yaw):
+    """
+    Generates a 3D figure 8 trajectory with equidistant points.
+    
+    Parameters:
+    radius (float): Radius of one of the loops of the figure 8.
+    d (float): Distance between each point on the trajectory.
+    
+    Returns:
+    np.ndarray: Array of shape (N, 3) containing the 3D coordinates of the trajectory.
+    """
+    x_center = center[0]
+    y_center = center[1]
+    z_center = center[2]
+    
+    
+    # Calculate the total arc length of the figure 8
+    total_length = figure_8_arc_length(radius)
+    
+    # Determine the number of points needed
+    n = int(np.ceil(total_length / d_points))
+    
+    # Generate points using parametric equations
+    t = np.linspace(0, 2 * np.pi, n)
+    x = radius * np.cos(t+np.pi/2) 
+    y = radius * np.sin(2 * t) / 2 
+    z = np.zeros_like(t)  # Constant height
+    
+    # Combine into a single array
+    points = np.vstack((x+x_center, y+y_center, z+ z_center)).T
+    
+    
+    
+    
+    yaw = np.ones((n, 4)) * functions.euler_to_quaternion_numpy(np.array([0,0,yaw]))
+    return np.hstack((points, yaw))
+
+
+
+
+
 
 def find_closest_point(a, b):
     """
@@ -536,8 +594,9 @@ class OffboardControl(Node):
                 start = self.current_state[0:3]
                 self.circle_center = start + np.array([-self.circle_radius, 0, 0])
                 yaw = functions.quaternion_to_euler_numpy(self.attitude)[2]
-                self.trajectory = generate_circle_trajectory(start, self.circle_center, self.circle_radius, dist_points*0.65, yaw)
                 
+                #self.trajectory = generate_circle_trajectory(start, self.circle_center, self.circle_radius, dist_points*0.65, yaw)
+                self.trajectory = generate_figure_8_trajectory(start, self.circle_radius, dist_points*0.65, yaw)
                 self.init_circle = False
                 
             #if self.circle_traj_index >= len(self.trajectory):
