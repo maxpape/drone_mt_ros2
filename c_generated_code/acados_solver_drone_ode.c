@@ -569,13 +569,13 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* ubu = lubu + NBU;
     
     lbu[0] = 1;
-    ubu[0] = 9;
+    ubu[0] = 10;
     lbu[1] = 1;
-    ubu[1] = 9;
+    ubu[1] = 10;
     lbu[2] = 1;
-    ubu[2] = 9;
+    ubu[2] = 10;
     lbu[3] = 1;
-    ubu[3] = 9;
+    ubu[3] = 10;
 
     for (int i = 0; i < N; i++)
     {
@@ -737,7 +737,7 @@ int fixed_hess = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_iter_max", &qp_solver_iter_max);
 
 
-    int qp_solver_warm_start = 1;
+    int qp_solver_warm_start = 2;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_warm_start", &qp_solver_warm_start);
 
     int print_level = 0;

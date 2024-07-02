@@ -39,10 +39,7 @@ def is_setpoint_reached(setpoint, position, attitude, threshold_pos, threshold_a
     attitude_error = functions.quaternion_error_numpy(setpoint_attitude, attitude)
     yaw_error = np.abs(functions.quaternion_to_euler_numpy(attitude_error)[2])
     
-    print('Position: {}'.format(position))
-    print('Setpoint: {}'.format(setpoint_position))
-    print('Distance: {}'.format(distance))
-    print('\n')
+    
     
     #if (distance <= threshold_pos) and (yaw_error <= threshold_att):
     if (distance <= threshold_pos):
@@ -205,7 +202,7 @@ class OffboardControl(Node):
         self.Tf = 1
         self.nx = 17
         self.nu = 4
-        self.Tmax = 9
+        self.Tmax = 10
         self.Tmin = 1
         self.vmax = 3
         self.angular_vmax = 1.5
@@ -586,21 +583,20 @@ class OffboardControl(Node):
         self.ocp_solver.set(0, "p", parameters)  
         
         
-        for j in range(1, 2):
-            
-            if self.use_gp:
-                
-                parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(1), self.ang_acc_offset[j]), axis=None)
-            else:
-                parameters = np.concatenate((self.params, trajectory[j],  np.zeros(6)), axis=None)
-            
-            self.ocp_solver.set(j, "p", parameters)
+        
+        if self.use_gp:
+        
+            parameters = np.concatenate((self.params, trajectory[1], self.lin_acc_offset[1,0:2],  np.zeros(1), self.ang_acc_offset[1]), axis=None)
+        else:
+            parameters = np.concatenate((self.params, trajectory[1],  np.zeros(6)), axis=None)
+        
+        self.ocp_solver.set(1, "p", parameters)
         
         
         for j in range(2, self.gp_prediction_horizon-1):
             if self.use_gp:
             
-                parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(1), self.ang_acc_offset[j]), axis=None)
+                parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
             else:
                 parameters = np.concatenate((self.params, trajectory[j],  np.zeros(6)), axis=None)
             
@@ -1215,7 +1211,8 @@ class OffboardControl(Node):
                 pad = np.zeros(3)
                 correction = np.vstack((pad, self.ang_acc_offset[1:]))
                 if self.use_gp:
-                    sim_accel_pred_ang = (simx_w_next - simx_w) / (self.Tf/self.N_horizon) - correction/20
+                    sim_accel_pred_ang = (simx_w_next - simx_w) / (self.Tf/self.N_horizon)
+                    sim_accel_pred_ang[1] = sim_accel_pred_ang[1] - correction[1]/20
                 else:
                     sim_accel_pred_ang = (simx_w_next - simx_w) / (self.Tf/self.N_horizon) 
                 sim_accel_pred_ang = np.hstack((sim_accel_pred_ang, simx_w_next)) 
@@ -1270,6 +1267,12 @@ class OffboardControl(Node):
                 gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,(0,3)], real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3)], axis=0, type='lin')
                 gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,(1,4)], real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)], axis=1, type='lin')
                 gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,(2,5)], real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2, type='lin')
+                
+                #gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_lin_z = np.zeros((self.gp_prediction_horizon, 1))
+                
+                
                 #gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,0].reshape(-1,1), real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,0].reshape(-1,1), axis=0)
                 #gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,1].reshape(-1,1), real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,1].reshape(-1,1), axis=1)
                 #gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,2].reshape(-1,1), real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,2].reshape(-1,1), axis=2)
