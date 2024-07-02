@@ -401,7 +401,7 @@
         "qp_solver_tol_eq": null,
         "qp_solver_tol_ineq": null,
         "qp_solver_tol_stat": null,
-        "qp_solver_warm_start": 2,
+        "qp_solver_warm_start": 1,
         "reg_epsilon": 0.0001,
         "regularize_method": "NO_REGULARIZE",
         "rti_log_residuals": 0,
