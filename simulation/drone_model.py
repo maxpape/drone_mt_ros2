@@ -99,11 +99,11 @@ def export_drone_ode_model() -> AcadosModel:
     c_tau = SX.sym('c_tau')
     p_ref = SX.sym('p_ref', 3)
     q_ref = SX.sym('q_ref', 4)
-    v_ref = SX.sym('v_ref', 3)
-    w_ref = SX.sym('w_ref', 3)
+    p1 = SX.sym('p1', 3)
+    p2 = SX.sym('p2', 3)
 
 
-    params = vertcat(m, g, jxx, jyy, jzz, d_x0, d_x1, d_x2, d_x3, d_y0, d_y1, d_y2, d_y3, c_tau, p_ref, q_ref)
+    params = vertcat(m, g, jxx, jyy, jzz, d_x0, d_x1, d_x2, d_x3, d_y0, d_y1, d_y2, d_y3, c_tau, p_ref, q_ref, p1, p2)
 
 
     
@@ -140,8 +140,8 @@ def export_drone_ode_model() -> AcadosModel:
     
     f_expl = vertcat(v_WB,
                     quat_derivative(q_WB, omega_B),
-                    quat_rotation(vertcat(0,0,sum1(thrust)), q_WB) / m + vertcat(0,0,g),
-                    inv(J) @ ((P @ thrust - cross( omega_B , J @ omega_B)) ) ,
+                    quat_rotation(vertcat(0,0,sum1(thrust)), q_WB) / m + vertcat(0,0,g) + p1,
+                    inv(J) @ ((P @ thrust - cross( omega_B , J @ omega_B)) ) + p2,
                     (thrust_set - thrust)*10              
                     )
     

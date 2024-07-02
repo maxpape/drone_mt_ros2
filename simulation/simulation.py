@@ -256,7 +256,7 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.dims.N = N_horizon
     
 
-    ocp.parameter_values = parameters
+    ocp.parameter_values = np.concatenate((parameters, np.zeros(3), np.zeros(3)), axis=None)
 
     # define weighing matrices
     Q_p = np.diag([1,1,1000])
@@ -338,104 +338,32 @@ def main(use_RTI=False):
         
         # set different setpoint for attitude
         if i == 100:
-            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
-            y_ref = np.concatenate((np.array([3, 0, 0]), q_ref ), axis=None)
+            q_ref = np.array([1,0,0,0])
+            y_ref = np.concatenate((np.array([0, 0, 0]), q_ref ), axis=None)
             
-            parameters = np.concatenate((params, y_ref), axis=None)
+            parameters = np.concatenate((params, y_ref, np.ones(3)*10, np.zeros(3)), axis=None)
             
             for j in range(N_horizon):
 
                 ocp_solver.set(j, "p", parameters)
             ocp_solver.set(N_horizon, "p", parameters)
+            
+            
+            u = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=False)
+            simU[i, :] = np.ones(4) * hover_thrust
+            
+            print('x0: {}'.format(ocp_solver.get(0, 'x')[7:10]))
+            print('x1: {}'.format(ocp_solver.get(1, 'x')[7:10]))
+            print('x2: {}'.format(ocp_solver.get(2, 'x')[7:10]))
+            print('x3: {}'.format(ocp_solver.get(3, 'x')[7:10]))
+            print('x4: {}'.format(ocp_solver.get(4, 'x')[7:10]))
+            
         
         
-        if i == 200:
-            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
-            y_ref = np.concatenate((np.array([-3, 0, 0]), q_ref ), axis=None)
-            
-            parameters = np.concatenate((params, y_ref), axis=None)
-            
-            for j in range(N_horizon):
-
-                ocp_solver.set(j, "p", parameters)
-            ocp_solver.set(N_horizon, "p", parameters)
-            
-        if i == 300:
-            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
-            y_ref = np.concatenate((np.array([0, 0, 0]), q_ref ), axis=None)
-            
-            parameters = np.concatenate((params, y_ref), axis=None)
-            
-            for j in range(N_horizon):
-
-                ocp_solver.set(j, "p", parameters)
-            ocp_solver.set(N_horizon, "p", parameters)
-            
-        if i == 400:
-            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
-            y_ref = np.concatenate((np.array([0, 3, 0]), q_ref ), axis=None)
-            
-            parameters = np.concatenate((params, y_ref), axis=None)
-            
-            for j in range(N_horizon):
-
-                ocp_solver.set(j, "p", parameters)
-            ocp_solver.set(N_horizon, "p", parameters)
-            
-        if i == 500:
-            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
-            y_ref = np.concatenate((np.array([0, -3, 0]), q_ref ), axis=None)
-            
-            parameters = np.concatenate((params, y_ref), axis=None)
-            
-            for j in range(N_horizon):
-
-                ocp_solver.set(j, "p", parameters)
-            ocp_solver.set(N_horizon, "p", parameters)
-            
-        if i == 600:
-            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
-            y_ref = np.concatenate((np.array([0, 0, 0]), q_ref ), axis=None)
-            
-            parameters = np.concatenate((params, y_ref), axis=None)
-            
-            for j in range(N_horizon):
-
-                ocp_solver.set(j, "p", parameters)
-            ocp_solver.set(N_horizon, "p", parameters)
-            
-        if i == 700:
-            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
-            y_ref = np.concatenate((np.array([0, 0, 3]), q_ref ), axis=None)
-            
-            parameters = np.concatenate((params, y_ref), axis=None)
-            
-            for j in range(N_horizon):
-
-                ocp_solver.set(j, "p", parameters)
-            ocp_solver.set(N_horizon, "p", parameters)
-        if i == 800:
-            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
-            y_ref = np.concatenate((np.array([0, 0, -3]), q_ref ), axis=None)
-            
-            parameters = np.concatenate((params, y_ref), axis=None)
-            
-            for j in range(N_horizon):
-
-                ocp_solver.set(j, "p", parameters)
-            ocp_solver.set(N_horizon, "p", parameters)
-            
-        if i == 900:
-            q_ref = euler_to_quaternion(np.array([0, 0, 0]))
-            y_ref = np.concatenate((np.array([0, 0, 0]), q_ref ), axis=None)
-            
-            parameters = np.concatenate((params, y_ref), axis=None)
-            
-            for j in range(N_horizon):
-
-                ocp_solver.set(j, "p", parameters)
-            ocp_solver.set(N_horizon, "p", parameters)
-
+        else:
+            u = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=False)
+            simU[i, :] = np.ones(4) * hover_thrust
+        
             
             
         
@@ -444,7 +372,7 @@ def main(use_RTI=False):
         
         
        
-        simU[i, :] = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=True)
+        
         
         #print(ocp_solver.get_cost())
         # print cost for current iteration

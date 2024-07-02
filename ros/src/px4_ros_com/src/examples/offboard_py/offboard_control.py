@@ -288,8 +288,8 @@ class OffboardControl(Node):
         
         # GP model and parameters
         # gp parameters
-        self.lengthscale = np.array([10, 10, 10, 0.01, 0.01, 0.01])
-        self.variance = np.array([0.5, 0.5, 0.5, 0.8, 0.8, 0.8])
+        self.lengthscale = np.array([10, 10, 10, 5, 5, 5])
+        self.variance = np.array([0.5, 0.5, 0.5, 0.3, 0.3, 0.3])
         self.kernel = GPy.kern.RBF(input_dim=2, variance=self.variance[0], lengthscale=self.lengthscale[0])
         #k2 = GPy.kern.Linear(input_dim=1, variances=1)
         #kernel = k1*k2
@@ -688,14 +688,14 @@ class OffboardControl(Node):
             kern.variance.constrain_bounded(0.01, 4.2, warning=False)  # Set variance bounds
             kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = 0.001
+            gpmodel.Gaussian_noise.variance = 0.01
             gpmodel.Gaussian_noise.variance.fix()
         elif (axis+type_dict[type]) == 1:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1], ARD=self.use_ard)
             kern.variance.constrain_bounded(0.01, 4.2, warning=False)  # Set variance bounds
             kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = 0.001
+            gpmodel.Gaussian_noise.variance = 0.01
             gpmodel.Gaussian_noise.variance.fix()
         elif (axis+type_dict[type]) == 2:
             kern = GPy.kern.RBF(input_dim=2, variance=0.03, lengthscale=0.1, active_dims=[0,1])
@@ -983,7 +983,7 @@ class OffboardControl(Node):
         Returns:
             float: mapped motor input
         """
-        output = (340.3409*input_value**0.5097284)/1100
+        output = (341.2561*input_value**0.5004472)/1100
         
         if output > 1:
             return 1
@@ -1002,7 +1002,7 @@ class OffboardControl(Node):
             float: current force of motor
         """
         try:
-            x = (input_value / 340.3409) ** (1 / 0.5097284)
+            x = (input_value / 341.2561) ** (1 / 0.5004472)
             
             if 10 < x:
                 return 10
@@ -1201,7 +1201,7 @@ class OffboardControl(Node):
                 x_y = np.hstack((self.lin_acc_offset[1:,0:2], np.zeros((self.lin_acc_offset.shape[0]-1,1))))
                 correction = np.vstack((pad, x_y))
                 if self.use_gp:
-                    sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon) - correction
+                    sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon) - correction/20
                 else:
                     sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon)
                 sim_accel_pred_lin = np.hstack((sim_accel_pred_lin, simx_v_next))
@@ -1214,7 +1214,7 @@ class OffboardControl(Node):
                 pad = np.zeros(3)
                 correction = np.vstack((pad, self.ang_acc_offset[1:]))
                 if self.use_gp:
-                    sim_accel_pred_ang = (simx_w_next - simx_w) / (self.Tf/self.N_horizon) - correction
+                    sim_accel_pred_ang = (simx_w_next - simx_w) / (self.Tf/self.N_horizon) - correction/20
                 else:
                     sim_accel_pred_ang = (simx_w_next - simx_w) / (self.Tf/self.N_horizon) 
                 sim_accel_pred_ang = np.hstack((sim_accel_pred_ang, simx_w_next)) 

@@ -186,7 +186,7 @@ ocp_nlp_dims* drone_ode_acados_create_2_create_and_set_dimensions(drone_ode_solv
     /************************************************
     *  dimensions
     ************************************************/
-    #define NINTNP1MEMS 17
+    #define NINTNP1MEMS 18
     int* intNp1mem = (int*)malloc( (N+1)*sizeof(int)*NINTNP1MEMS );
 
     int* nx    = intNp1mem + (N+1)*0;
@@ -206,6 +206,7 @@ ocp_nlp_dims* drone_ode_acados_create_2_create_and_set_dimensions(drone_ode_solv
     int* ny    = intNp1mem + (N+1)*14;
     int* nr    = intNp1mem + (N+1)*15;
     int* nbxe  = intNp1mem + (N+1)*16;
+    int* np  = intNp1mem + (N+1)*17;
 
     for (int i = 0; i < N+1; i++)
     {
@@ -229,6 +230,7 @@ ocp_nlp_dims* drone_ode_acados_create_2_create_and_set_dimensions(drone_ode_solv
         nphi[i]   = NPHI;
         nr[i]     = NR;
         nbxe[i]   = 0;
+        np[i]     = NP;
     }
 
     // for initial state
@@ -270,6 +272,7 @@ ocp_nlp_dims* drone_ode_acados_create_2_create_and_set_dimensions(drone_ode_solv
     ocp_nlp_dims_set_opt_vars(nlp_config, nlp_dims, "nu", nu);
     ocp_nlp_dims_set_opt_vars(nlp_config, nlp_dims, "nz", nz);
     ocp_nlp_dims_set_opt_vars(nlp_config, nlp_dims, "ns", ns);
+    ocp_nlp_dims_set_opt_vars(nlp_config, nlp_dims, "np", np);
 
     for (int i = 0; i <= N; i++)
     {
@@ -335,12 +338,12 @@ void drone_ode_acados_create_3_create_and_set_functions(drone_ode_solver_capsule
 
     // external cost
     MAP_CASADI_FNC(ext_cost_0_fun, drone_ode_cost_ext_cost_0_fun);
-
-    // external cost
     MAP_CASADI_FNC(ext_cost_0_fun_jac, drone_ode_cost_ext_cost_0_fun_jac);
-
-    // external cost
     MAP_CASADI_FNC(ext_cost_0_fun_jac_hess, drone_ode_cost_ext_cost_0_fun_jac_hess);
+
+    
+
+    
     // external cost
     capsule->ext_cost_fun = (external_function_param_casadi *) malloc(sizeof(external_function_param_casadi)*(N-1));
     for (int i = 0; i < N-1; i++)
@@ -359,6 +362,10 @@ void drone_ode_acados_create_3_create_and_set_functions(drone_ode_solver_capsule
     {
         MAP_CASADI_FNC(ext_cost_fun_jac_hess[i], drone_ode_cost_ext_cost_fun_jac_hess);
     }
+
+    
+
+    
     // external cost - function
     MAP_CASADI_FNC(ext_cost_e_fun, drone_ode_cost_ext_cost_e_fun);
 
@@ -367,6 +374,11 @@ void drone_ode_acados_create_3_create_and_set_functions(drone_ode_solver_capsule
 
     // external cost - hessian
     MAP_CASADI_FNC(ext_cost_e_fun_jac_hess, drone_ode_cost_ext_cost_e_fun_jac_hess);
+
+    // external cost - jacobian wrt params
+    
+
+    
 
 #undef MAP_CASADI_FNC
 }
@@ -381,9 +393,9 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     double* p = calloc(NP, sizeof(double));
     p[0] = 1.5;
     p[1] = -9.81;
-    p[2] = 0.029125;
-    p[3] = 0.029125;
-    p[4] = 0.055225;
+    p[2] = 0.0029125;
+    p[3] = 0.0029125;
+    p[4] = 0.0055225;
     p[5] = 0.107;
     p[6] = 0.107;
     p[7] = 0.107;
@@ -392,9 +404,8 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     p[10] = 0.0935;
     p[11] = 0.0935;
     p[12] = 0.0935;
-    p[13] = 0.000806428;
-    p[17] = 0.7071067811865476;
-    p[20] = -0.7071067811865476;
+    p[13] = 0.005;
+    p[17] = 1;
 
     for (int i = 0; i <= N; i++) {
         drone_ode_acados_update_params(capsule, i, p, NP);
@@ -447,15 +458,21 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "ext_cost_fun", &capsule->ext_cost_0_fun);
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "ext_cost_fun_jac", &capsule->ext_cost_0_fun_jac);
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, 0, "ext_cost_fun_jac_hess", &capsule->ext_cost_0_fun_jac_hess);
+    
+    
     for (int i = 1; i < N; i++)
     {
         ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "ext_cost_fun", &capsule->ext_cost_fun[i-1]);
         ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "ext_cost_fun_jac", &capsule->ext_cost_fun_jac[i-1]);
         ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, i, "ext_cost_fun_jac_hess", &capsule->ext_cost_fun_jac_hess[i-1]);
+        
+        
     }
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "ext_cost_fun", &capsule->ext_cost_e_fun);
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "ext_cost_fun_jac", &capsule->ext_cost_e_fun_jac);
     ocp_nlp_cost_model_set(nlp_config, nlp_dims, nlp_in, N, "ext_cost_fun_jac_hess", &capsule->ext_cost_e_fun_jac_hess);
+    
+    
 
 
 
@@ -489,10 +506,8 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbx0 = lubx0;
     double* ubx0 = lubx0 + NBX0;
     // change only the non-zero elements:
-    lbx0[3] = 0.7071067811865476;
-    ubx0[3] = 0.7071067811865476;
-    lbx0[6] = -0.7071067811865476;
-    ubx0[6] = -0.7071067811865476;
+    lbx0[3] = 1;
+    ubx0[3] = 1;
     lbx0[13] = 3.67875;
     ubx0[13] = 3.67875;
     lbx0[14] = 3.67875;
@@ -549,14 +564,14 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbu = lubu;
     double* ubu = lubu + NBU;
     
-    lbu[0] = 1;
-    ubu[0] = 8;
-    lbu[1] = 1;
-    ubu[1] = 8;
-    lbu[2] = 1;
-    ubu[2] = 8;
-    lbu[3] = 1;
-    ubu[3] = 8;
+    lbu[0] = 0.5;
+    ubu[0] = 10;
+    lbu[1] = 0.5;
+    ubu[1] = 10;
+    lbu[2] = 0.5;
+    ubu[2] = 10;
+    lbu[3] = 0.5;
+    ubu[3] = 10;
 
     for (int i = 0; i < N; i++)
     {
@@ -574,28 +589,6 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
 
 
 
-    // x
-    int* idxbx = malloc(NBX * sizeof(int));
-    
-    idxbx[0] = 4;
-    idxbx[1] = 5;
-    double* lubx = calloc(2*NBX, sizeof(double));
-    double* lbx = lubx;
-    double* ubx = lubx + NBX;
-    
-    lbx[0] = -0.2;
-    ubx[0] = 0.2;
-    lbx[1] = -0.2;
-    ubx[1] = 0.2;
-
-    for (int i = 1; i < N; i++)
-    {
-        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "idxbx", idxbx);
-        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "lbx", lbx);
-        ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, i, "ubx", ubx);
-    }
-    free(idxbx);
-    free(lubx);
 
 
 
@@ -635,7 +628,13 @@ void drone_ode_acados_create_6_set_opts(drone_ode_solver_capsule* capsule)
 
 int fixed_hess = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "fixed_hess", &fixed_hess);
-    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "globalization", "fixed_step");int full_step_dual = 0;
+    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "globalization", "fixed_step");int with_solution_sens_wrt_params = false;
+    ocp_nlp_solver_opts_set(nlp_config, capsule->nlp_opts, "with_solution_sens_wrt_params", &with_solution_sens_wrt_params);
+
+    int with_value_sens_wrt_params = false;
+    ocp_nlp_solver_opts_set(nlp_config, capsule->nlp_opts, "with_value_sens_wrt_params", &with_value_sens_wrt_params);
+
+    int full_step_dual = 0;
     ocp_nlp_solver_opts_set(nlp_config, capsule->nlp_opts, "full_step_dual", &full_step_dual);
 
     // set collocation type (relevant for implicit integrators)
@@ -667,11 +666,11 @@ int fixed_hess = 0;
     double nlp_solver_step_length = 1;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "step_length", &nlp_solver_step_length);
 
-    double levenberg_marquardt = 15;
+    double levenberg_marquardt = 20;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "levenberg_marquardt", &levenberg_marquardt);
 
     /* options QP solver */
-    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 40;
+    int qp_solver_cond_N;const int qp_solver_cond_N_ori = 100;
     qp_solver_cond_N = N < qp_solver_cond_N_ori ? N : qp_solver_cond_N_ori; // use the minimum value here
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "qp_cond_N", &qp_solver_cond_N);
 
@@ -731,8 +730,7 @@ void drone_ode_acados_create_7_set_nlp_out(drone_ode_solver_capsule* capsule)
 
     // initialize with x0
     
-    x0[3] = 0.7071067811865476;
-    x0[6] = -0.7071067811865476;
+    x0[3] = 1;
     x0[13] = 3.67875;
     x0[14] = 3.67875;
     x0[15] = 3.67875;
@@ -926,12 +924,16 @@ int drone_ode_acados_update_params(drone_ode_solver_capsule* capsule, int stage,
             capsule->ext_cost_0_fun.set_param(&capsule->ext_cost_0_fun, p);
             capsule->ext_cost_0_fun_jac.set_param(&capsule->ext_cost_0_fun_jac, p);
             capsule->ext_cost_0_fun_jac_hess.set_param(&capsule->ext_cost_0_fun_jac_hess, p);
+            
+            
         }
         else // 0 < stage < N
         {
             capsule->ext_cost_fun[stage-1].set_param(capsule->ext_cost_fun+stage-1, p);
             capsule->ext_cost_fun_jac[stage-1].set_param(capsule->ext_cost_fun_jac+stage-1, p);
             capsule->ext_cost_fun_jac_hess[stage-1].set_param(capsule->ext_cost_fun_jac_hess+stage-1, p);
+            
+            
         }
     }
 
@@ -942,6 +944,8 @@ int drone_ode_acados_update_params(drone_ode_solver_capsule* capsule, int stage,
         capsule->ext_cost_e_fun.set_param(&capsule->ext_cost_e_fun, p);
         capsule->ext_cost_e_fun_jac.set_param(&capsule->ext_cost_e_fun_jac, p);
         capsule->ext_cost_e_fun_jac_hess.set_param(&capsule->ext_cost_e_fun_jac_hess, p);
+        
+        
         // constraints
     }
 
@@ -973,26 +977,31 @@ int drone_ode_acados_update_params_sparse(drone_ode_solver_capsule * capsule, in
     {
         capsule->forw_vde_casadi[stage].set_param_sparse(capsule->forw_vde_casadi+stage, n_update, idx, p);
         capsule->expl_ode_fun[stage].set_param_sparse(capsule->expl_ode_fun+stage, n_update, idx, p);
-    
 
-        // cost & constraints
+        // constraints
         if (stage == 0)
         {
-            // cost
+        }
+        else
+        {
+        }
+
+        // cost
+        if (stage == 0)
+        {
             capsule->ext_cost_0_fun.set_param_sparse(&capsule->ext_cost_0_fun, n_update, idx, p);
             capsule->ext_cost_0_fun_jac.set_param_sparse(&capsule->ext_cost_0_fun_jac, n_update, idx, p);
             capsule->ext_cost_0_fun_jac_hess.set_param_sparse(&capsule->ext_cost_0_fun_jac_hess, n_update, idx, p);
-        
-            // constraints
-        
+            
+            
         }
         else // 0 < stage < N
         {
             capsule->ext_cost_fun[stage-1].set_param_sparse(capsule->ext_cost_fun+stage-1, n_update, idx, p);
             capsule->ext_cost_fun_jac[stage-1].set_param_sparse(capsule->ext_cost_fun_jac+stage-1, n_update, idx, p);
             capsule->ext_cost_fun_jac_hess[stage-1].set_param_sparse(capsule->ext_cost_fun_jac_hess+stage-1, n_update, idx, p);
-
-        
+            
+            
         }
     }
 
@@ -1003,9 +1012,9 @@ int drone_ode_acados_update_params_sparse(drone_ode_solver_capsule * capsule, in
         capsule->ext_cost_e_fun.set_param_sparse(&capsule->ext_cost_e_fun, n_update, idx, p);
         capsule->ext_cost_e_fun_jac.set_param_sparse(&capsule->ext_cost_e_fun_jac, n_update, idx, p);
         capsule->ext_cost_e_fun_jac_hess.set_param_sparse(&capsule->ext_cost_e_fun_jac_hess, n_update, idx, p);
-    
+        
+        
         // constraints
-    
     }
 
 
@@ -1049,11 +1058,15 @@ int drone_ode_acados_free(drone_ode_solver_capsule* capsule)
     external_function_param_casadi_free(&capsule->ext_cost_0_fun);
     external_function_param_casadi_free(&capsule->ext_cost_0_fun_jac);
     external_function_param_casadi_free(&capsule->ext_cost_0_fun_jac_hess);
+    
+    
     for (int i = 0; i < N - 1; i++)
     {
         external_function_param_casadi_free(&capsule->ext_cost_fun[i]);
         external_function_param_casadi_free(&capsule->ext_cost_fun_jac[i]);
         external_function_param_casadi_free(&capsule->ext_cost_fun_jac_hess[i]);
+        
+        
     }
     free(capsule->ext_cost_fun);
     free(capsule->ext_cost_fun_jac);
@@ -1061,6 +1074,8 @@ int drone_ode_acados_free(drone_ode_solver_capsule* capsule)
     external_function_param_casadi_free(&capsule->ext_cost_e_fun);
     external_function_param_casadi_free(&capsule->ext_cost_e_fun_jac);
     external_function_param_casadi_free(&capsule->ext_cost_e_fun_jac_hess);
+    
+    
 
     // constraints
 

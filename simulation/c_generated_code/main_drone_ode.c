@@ -43,6 +43,7 @@
 #include "blasfeo/include/blasfeo_d_aux_ext_dep.h"
 
 #define NX     DRONE_ODE_NX
+#define NP     DRONE_ODE_NP
 #define NU     DRONE_ODE_NU
 #define NBX0   DRONE_ODE_NBX0
 
@@ -79,14 +80,14 @@ int main()
     ubx0[1] = 0;
     lbx0[2] = 0;
     ubx0[2] = 0;
-    lbx0[3] = 0.7071067811865476;
-    ubx0[3] = 0.7071067811865476;
+    lbx0[3] = 1;
+    ubx0[3] = 1;
     lbx0[4] = 0;
     ubx0[4] = 0;
     lbx0[5] = 0;
     ubx0[5] = 0;
-    lbx0[6] = -0.7071067811865476;
-    ubx0[6] = -0.7071067811865476;
+    lbx0[6] = 0;
+    ubx0[6] = 0;
     lbx0[7] = 0;
     ubx0[7] = 0;
     lbx0[8] = 0;
