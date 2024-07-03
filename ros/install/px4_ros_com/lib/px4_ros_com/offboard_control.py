@@ -244,7 +244,7 @@ class OffboardControl(Node):
         self.counter_2 = 0
         self.fly_circle = False
         self.init_circle = True
-        self.circle_radius = 10.0
+        self.circle_radius = 5.0
         self.circle_center = np.array([0,0,2])
         
 
@@ -653,7 +653,7 @@ class OffboardControl(Node):
         for j in range(2, self.gp_prediction_horizon-1):
             if self.use_gp:
             
-                parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j],  np.zeros(3)), axis=None)
+                parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j],  self.ang_acc_offset[j]), axis=None)
             else:
                 parameters = np.concatenate((self.params, trajectory[j],  np.zeros(6)), axis=None)
             
@@ -1058,8 +1058,9 @@ class OffboardControl(Node):
             if lin_or_ang == 'lin':
                 accel = (v1 - v0) / (self.Tf/self.N_horizon) - correction / 20
             else:
-                accel = (v1 - v0) / (self.Tf/self.N_horizon)
-                accel[1] = accel[1] - correction[1]/20
+                accel = (v1 - v0) / (self.Tf/self.N_horizon) - correction / 20
+                #accel = (v1 - v0) / (self.Tf/self.N_horizon)
+                #accel[1] = accel[1] - correction[1]/20
         else:
             accel = (v1 - v0) / (self.Tf/self.N_horizon)
         accel_vel = np.hstack((accel, v1))
@@ -1382,9 +1383,25 @@ class OffboardControl(Node):
                 sim_accel_pred_ang_ext = np.vstack((sim_accel_pred_ang, self.sim_imu_ang_history[-2][0:6]))
                 
                 # predict angular acceleration
-                gp_prediction_ang_x = self.predict_next_y(sim_hist_ang[:,(0,3)], real_hist_ang[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3)], type=3)
-                gp_prediction_ang_y = self.predict_next_y(sim_hist_ang[:,(1,4)], real_hist_ang[:,1].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4)], type=4)
+                #gp_prediction_ang_x = self.predict_next_y(sim_hist_ang[:,(0,3)], real_hist_ang[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3)], type=3)
+                #gp_prediction_ang_y = self.predict_next_y(sim_hist_ang[:,(1,4)], real_hist_ang[:,1].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4)], type=4)
                 gp_prediction_ang_z = self.predict_next_y(sim_hist_ang[:,(2,5)], real_hist_ang[:,2].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5)], type=5)
+                
+                
+                
+                
+                t_back = self.gp_prediction_horizon-2
+                y_hist_sim = self.mpc_prediction_history_ang[-2-t_back][:,(0,3)]
+                y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,6], nan=0)
+                gp_prediction_ang_x = self.predict_z_accel(y_hist_sim, y_hist_real.reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3)])
+                
+                y_hist_sim = self.mpc_prediction_history_ang[-2-t_back][:,(1,4)]
+                y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,7], nan=0)
+                gp_prediction_ang_y = self.predict_z_accel(y_hist_sim, y_hist_real.reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4)])
+                
+                
+                
+                
                 
                 # calculate offset from prediction of GP and MPC
                 ang_acc_offset = np.hstack((gp_prediction_ang_x[:-1,0].reshape(-1,1), gp_prediction_ang_y[:-1,0].reshape(-1,1), gp_prediction_ang_z[:-1,0].reshape(-1,1)))
