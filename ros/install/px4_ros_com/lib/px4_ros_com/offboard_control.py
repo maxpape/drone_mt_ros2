@@ -301,7 +301,7 @@ class OffboardControl(Node):
                             self.c_tau])
         
         # imu data
-        history_length = 10
+        history_length = 20
         
         self.linear_accel_real = np.zeros(3)
         self.angular_accel_real = np.zeros(3)
@@ -341,14 +341,14 @@ class OffboardControl(Node):
         
         # GP model and parameters
         # gp parameters
-        self.lengthscale = np.array([2,2,2,1,1,1])
+        self.lengthscale = np.array([4,4,4,2,2,2])
         self.variance = np.array([0.5, 0.5, 0.5, 0.3, 0.3, 0.3])
         self.kernel = GPy.kern.RBF(input_dim=2, variance=self.variance[0], lengthscale=self.lengthscale[0])
         #k2 = GPy.kern.Linear(input_dim=1, variances=1)
         #kernel = k1*k2
         self.gpmodel = GPy.models.GPRegression(np.array([[0,0]]), np.array([[0,0]]), self.kernel)
         #self.gpmodel.rbf.lengthscale.constrain_bounded(0.5, 15.0, warning=False )
-        self.gp_prediction_horizon = 7
+        self.gp_prediction_horizon = 20
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.sim_x_last = self.current_state[:-1]
@@ -725,10 +725,10 @@ class OffboardControl(Node):
         
         kern = GPy.kern.RBF(input_dim=2, variance=self.variance[2], lengthscale=self.lengthscale[2], active_dims=[0,1], ARD=self.use_ard)
         
-        kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-        kern.lengthscale.constrain_bounded(1, 7, warning=False)  # Set lengthscale bounds
+        #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
+        #kern.lengthscale.constrain_bounded(1, 7, warning=False)  # Set lengthscale bounds
         gpmodel = GPy.models.GPRegression(x, y, kern)
-        gpmodel.Gaussian_noise.variance = 0.001
+        gpmodel.Gaussian_noise.variance = 0.01
         gpmodel.Gaussian_noise.variance.fix()
         
         #gpmodel.optimize()
@@ -738,7 +738,7 @@ class OffboardControl(Node):
         #print('Variance: {}'.format(gpmodel.rbf.variance[0]))
         #print('\n')
         
-        mean, var = gpmodel.predict(new_x)
+        mean, var = gpmodel.predict_noiseless(new_x)
         
         return mean
     
@@ -1339,6 +1339,14 @@ class OffboardControl(Node):
                 gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,(0,3)], real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3)], type=0)
                 gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,(1,4)], real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)], type=1)
                 #gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,(2,5)], real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2, type='lin')
+                
+                ## linear acceleration for z direction is calulated with multi-step prediction, not single-step prediction
+                #t_back = self.gp_prediction_horizon-2
+                #y_hist_sim = self.mpc_prediction_history_lin[-2-t_back][:,(1,4)]
+                #y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,1], nan=0)
+                #gp_prediction_lin_y = self.predict_z_accel(y_hist_sim, y_hist_real.reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)])
+                
+                
                 
                 
                 # linear acceleration for z direction is calulated with multi-step prediction, not single-step prediction
