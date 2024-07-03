@@ -244,7 +244,7 @@ class OffboardControl(Node):
         self.counter_2 = 0
         self.fly_circle = False
         self.init_circle = True
-        self.circle_radius = 2.0
+        self.circle_radius = 10.0
         self.circle_center = np.array([0,0,2])
         
 
@@ -341,14 +341,14 @@ class OffboardControl(Node):
         
         # GP model and parameters
         # gp parameters
-        self.lengthscale = np.array([4,4,4,2,2,2])
-        self.variance = np.array([0.5, 0.5, 0.5, 0.3, 0.3, 0.3])
+        self.lengthscale = np.array([5,5,5,2,2,2])
+        self.variance = np.array([0.2, 0.2, 0.2, 0.3, 0.3, 0.3])
         self.kernel = GPy.kern.RBF(input_dim=2, variance=self.variance[0], lengthscale=self.lengthscale[0])
         #k2 = GPy.kern.Linear(input_dim=1, variances=1)
         #kernel = k1*k2
         self.gpmodel = GPy.models.GPRegression(np.array([[0,0]]), np.array([[0,0]]), self.kernel)
         #self.gpmodel.rbf.lengthscale.constrain_bounded(0.5, 15.0, warning=False )
-        self.gp_prediction_horizon = 20
+        self.gp_prediction_horizon = 12
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.sim_x_last = self.current_state[:-1]
@@ -928,9 +928,10 @@ class OffboardControl(Node):
         
         # set solver options
         ocp.solver_options.levenberg_marquardt = 10.0
-        ocp.solver_options.qp_solver_warm_start = 0
+        ocp.solver_options.qp_solver_warm_start = 1
         ocp.solver_options.integrator_type = 'ERK'
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'
+        ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_OSQP'
         
         
         # create ACADOS solver
@@ -1054,7 +1055,11 @@ class OffboardControl(Node):
         #x_y = np.hstack((self.lin_acc_offset[1:,0:2], np.zeros((self.lin_acc_offset.shape[0]-1,1))))
         #correction = np.vstack((pad, x_y))
         if self.use_gp:
-            accel = (v1 - v0) / (self.Tf/self.N_horizon) - correction / 20
+            if lin_or_ang == 'lin':
+                accel = (v1 - v0) / (self.Tf/self.N_horizon) - correction / 20
+            else:
+                accel = (v1 - v0) / (self.Tf/self.N_horizon)
+                accel[1] = accel[1] - correction[1]/20
         else:
             accel = (v1 - v0) / (self.Tf/self.N_horizon)
         accel_vel = np.hstack((accel, v1))

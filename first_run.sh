@@ -29,7 +29,7 @@ cd /drone_mt_ros2/
 cd acados
 mkdir build
 cd build
-cmake -DACADOS_WITH_QPOASES=ON ..
+cmake -DACADOS_WITH_QPOASES=ON -DACADOS_WITH_QPDUNES=ON -DACADOS_WITH_OSQP=ON -DACADOS_WITH_DAQP=ON ..
 make install -j4
 pip install -e /drone_mt_ros2/acados/interfaces/acados_template
 
