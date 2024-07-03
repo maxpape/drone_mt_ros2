@@ -31,7 +31,7 @@ class PathPlotter(Node):
         self.reverence_subscriber = self.create_subscription(
             Vector3, 'reference_traj', self.update_ref, qos_profile)
         
-        self.buffer_length = 100
+        self.buffer_length = 1000
         buffer_length = self.buffer_length
         
         self.x_coords = collections.deque(maxlen=buffer_length)
@@ -48,10 +48,11 @@ class PathPlotter(Node):
         self.z_coords_ref = collections.deque(maxlen=buffer_length)
         self.t_ref = collections.deque(maxlen=buffer_length)
         
-        self.x_diff = collections.deque(maxlen=buffer_length)
-        self.y_diff = collections.deque(maxlen=buffer_length)
-        self.z_diff = collections.deque(maxlen=buffer_length)
+        self.is_first = True
+        self.first_ref = np.zeros(3)
 
+        
+        
         self.fig, self.ax = plt.subplots()
         self.ax = self.fig.add_subplot(111, projection='3d')
         self.line = self.ax.plot([], [], [], 'r-')[0]
@@ -60,6 +61,9 @@ class PathPlotter(Node):
         plt.ion()
         plt.show()
     def update_ref(self, msg):
+        
+        if self.is_first:
+            self.first_ref = np.array([msg.x, msg.y, msg.z])
         
         t = time.time()
         self.x_coords_ref.append(msg.x)
@@ -99,29 +103,50 @@ class PathPlotter(Node):
         
         
         
-        x = np.array(list(self.x_coords))
-        y = np.array(list(self.y_coords))
-        z = np.array(list(self.z_coords))     
-        real = np.vstack((x,y,z))
-        
-        x_ref = np.array(list(self.x_coords_ref))
-        y_ref = np.array(list(self.y_coords_ref))
-        z_ref = np.array(list(self.z_coords_ref))        
-        ref = np.vstack((x_ref, y_ref, z_ref))
         
         
+        #if diff.shape[0] == self.buffer_length:
+            
+        try:  
+            idx = self.x_coords_ref.index(self.first_ref[0],0,-1)
+            idy = self.y_coords_ref.index(self.first_ref[1],0,-1)
+            idz = self.z_coords_ref.index(self.first_ref[2],0,-1)
+        except:
+            idx = 1
+            idy = 2
+            idz = 3
         
-        diff_vector = ref-real
-        
-        diff = np.linalg.norm(diff_vector, axis=0)
-        
-        print('Average deviation of {:.4f} m over last {} samples'.format(np.mean(diff), self.buffer_length))
-        
-        
-        
-        
-        
-        
+        if idx == idy == idz:
+            x = np.array(list(self.x_coords))
+            y = np.array(list(self.y_coords))
+            z = np.array(list(self.z_coords))     
+            real = np.vstack((x,y,z))
+            
+            x_ref = np.array(list(self.x_coords_ref))
+            y_ref = np.array(list(self.y_coords_ref))
+            z_ref = np.array(list(self.z_coords_ref))        
+            ref = np.vstack((x_ref, y_ref, z_ref))
+            
+            
+            
+            diff_vector = ref-real
+            
+            diff = np.linalg.norm(diff_vector, axis=0)
+            
+            print('Average deviation of {:.4f} m over last {} samples'.format(np.mean(diff), diff.shape[0]))
+                
+            
+            
+            self.x_coords_ref.clear()
+            self.y_coords_ref.clear()
+            self.z_coords_ref.clear()
+            self.t_ref.clear()
+            
+            
+            self.x_coords.clear()
+            self.y_coords.clear()
+            self.z_coords.clear()
+            self.t_real.clear()
         
         
         

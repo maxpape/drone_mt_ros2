@@ -1083,9 +1083,9 @@ class OffboardControl(Node):
         backsteps = self.backsteps_plot
 
         # Assign real history values
-        imu_real.x = real_hist[-1][0]
-        imu_real.y = real_hist[-1][1]
-        imu_real.z = real_hist[-1][2]
+        imu_real.x = real_hist[-1-backsteps][0]
+        imu_real.y = real_hist[-1-backsteps][1]
+        imu_real.z = real_hist[-1-backsteps][2]
 
         # Calculate errors
         x_error = gp_pred[index][-2-backsteps][backsteps, 0] - mpc_pred[index][-2-backsteps][backsteps, 0]
