@@ -132,7 +132,8 @@ def generate_figure_8_trajectory(center, radius, d_points, yaw):
     t = np.linspace(0, 2 * np.pi, n)
     x = radius * np.cos(t+np.pi/2) 
     y = radius * np.sin(2 * t) / 2 
-    z = np.zeros_like(t)  # Constant height
+    #z = np.zeros_like(t)  # Constant height
+    z = 0.5 * np.cos(t+np.pi/2)
     
     # Combine into a single array
     points = np.vstack((x+x_center, y+y_center, z+ z_center)).T
@@ -645,7 +646,7 @@ class OffboardControl(Node):
         
         if self.use_gp:
         
-            parameters = np.concatenate((self.params, trajectory[1], self.lin_acc_offset[1,0:2],  np.zeros(1), self.ang_acc_offset[1]), axis=None)
+            parameters = np.concatenate((self.params, trajectory[1], self.lin_acc_offset[1], self.ang_acc_offset[1]), axis=None)
         else:
             parameters = np.concatenate((self.params, trajectory[1],  np.zeros(6)), axis=None)
         
@@ -655,7 +656,7 @@ class OffboardControl(Node):
         for j in range(2, self.gp_prediction_horizon-1):
             if self.use_gp:
             
-                parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j,0:2],  np.zeros(4)), axis=None)
+                parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j],  np.zeros(3)), axis=None)
             else:
                 parameters = np.concatenate((self.params, trajectory[j],  np.zeros(6)), axis=None)
             
@@ -720,6 +721,29 @@ class OffboardControl(Node):
         
         return SetParametersResult(successful=True)
 
+
+    def predict_z_accel(self, x, y, new_x):
+        
+        
+        
+        kern = GPy.kern.RBF(input_dim=2, variance=self.variance[2], lengthscale=self.lengthscale[2], active_dims=[0,1], ARD=self.use_ard)
+        
+        #kern.variance.constrain_bounded(0.05, 0.1, warning=False)  # Set variance bounds
+        #kern.lengthscale.constrain_bounded(0.1, 0.5, warning=False)  # Set lengthscale bounds
+        gpmodel = GPy.models.GPRegression(x, y, kern)
+        gpmodel.Gaussian_noise.variance = 0.0001
+        gpmodel.Gaussian_noise.variance.fix()
+        
+        #gpmodel.optimize()
+        #self.variance[2] = gpmodel.rbf.variance[0]
+        #self.lengthscale[2] = gpmodel.rbf.lengthscale[0]
+        #print('Lengthscale: {}'.format(gpmodel.rbf.lengthscale[0]))
+        #print('Variance: {}'.format(gpmodel.rbf.variance[0]))
+        #print('\n')
+        
+        mean, var = gpmodel.predict_noiseless(new_x)
+        
+        return mean
     
     def predict_next_y(self, x, y, new_x, axis, type):
         """
@@ -740,15 +764,15 @@ class OffboardControl(Node):
         
         if (axis+type_dict[type]) == 0:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1], ARD=self.use_ard)
-            kern.variance.constrain_bounded(0.01, 4.2, warning=False)  # Set variance bounds
-            kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
+            kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(1, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.01
             gpmodel.Gaussian_noise.variance.fix()
         elif (axis+type_dict[type]) == 1:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[axis], lengthscale=self.lengthscale[axis], active_dims=[0,1], ARD=self.use_ard)
-            kern.variance.constrain_bounded(0.01, 4.2, warning=False)  # Set variance bounds
-            kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
+            kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
+            kern.lengthscale.constrain_bounded(1, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.01
             gpmodel.Gaussian_noise.variance.fix()
@@ -768,7 +792,7 @@ class OffboardControl(Node):
             #kern.lengthscale.constrain_bounded(0.0001, 0.005, warning=False)  # Set lengthscale bounds
         elif (axis+type_dict[type]) == 3:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[3], lengthscale=self.lengthscale[3], active_dims=[0,1], ARD=self.use_ard)
-            kern.variance.constrain_bounded(0.01, 4.2, warning=False)  # Set variance bounds
+            kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
             kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.001
@@ -776,7 +800,7 @@ class OffboardControl(Node):
             
         elif (axis+type_dict[type]) == 4:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[4], lengthscale=self.lengthscale[4], active_dims=[0,1], ARD=self.use_ard)
-            kern.variance.constrain_bounded(0.01, 4.2, warning=False)  # Set variance bounds
+            kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
             kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.001
@@ -784,7 +808,7 @@ class OffboardControl(Node):
             
         elif (axis+type_dict[type]) == 5:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[5], lengthscale=self.lengthscale[5], active_dims=[0,1], ARD=self.use_ard)
-            kern.variance.constrain_bounded(0.01, 4.2, warning=False)  # Set variance bounds
+            kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
             kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
             gpmodel.Gaussian_noise.variance = 0.001
@@ -903,6 +927,8 @@ class OffboardControl(Node):
         ocp.constraints.idxbx = np.array([4, 5, 7, 8, 9, 10, 11, 12])
         
         
+        
+        
         # set initial state
     
         ocp.constraints.x0 = self.current_state[:-1]
@@ -916,10 +942,11 @@ class OffboardControl(Node):
         ocp.solver_options.tf = self.Tf
         
         # set solver options
-        ocp.solver_options.levenberg_marquardt = 15.0
-        ocp.solver_options.qp_solver_warm_start = 2
+        ocp.solver_options.levenberg_marquardt = 10.0
+        ocp.solver_options.qp_solver_warm_start = 0
         ocp.solver_options.integrator_type = 'ERK'
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'
+        
         
         # create ACADOS solver
         solver_json = 'acados_ocp_' + model.name + '.json'
@@ -978,57 +1005,7 @@ class OffboardControl(Node):
         
         self.thrust = thrust
         
-        
-    def vehicle_imu_callback(self, imu_data):
-        
-        return
-        linear_accel_body = functions.NED_to_ENU(imu_data.accelerometer_m_s2)
-        linear_accel_body[0] = -linear_accel_body[0]
-        linear_accel_body[1] = -linear_accel_body[1]
-        linear_accel_body[2] -= 9.81
-        angular_accel_body = functions.NED_to_ENU(imu_data.gyro_rad)
-        
-        
-        q = self.attitude
-        linear_accel =  quat_rotation_numpy(linear_accel_body, q)
-        angular_accel = quat_rotation_numpy(angular_accel_body, q)
-        timestamp = self.get_clock().now().nanoseconds
-        
-        self.linear_accel_real = linear_accel
-        self.angular_accel_real = angular_accel
-        self.imu_timestamp = timestamp
-        
-        #self.imu_data = np.concatenate((self.linear_accel, self.angular_accel, timestamp), axis=None)
-        
-        
-    def vehicle_local_position_callback(self, local_position):
-        return
-        ax = local_position.ax
-        ay = local_position.ay
-        az = local_position.az
-        
-        acceleration = np.array([ax, ay, az])
-        
-        linear_accel_body = functions.NED_to_ENU(acceleration)
-        linear_accel_body[0] = -linear_accel_body[0]
-        linear_accel_body[1] = -linear_accel_body[1]
-        linear_accel_body[2] -= 9.81
-        angular_accel_body = functions.NED_to_ENU(imu_data.gyro_rad)
-        
-        
-        q = self.attitude
-        linear_accel =  quat_rotation_numpy(linear_accel_body, q)
-        angular_accel = quat_rotation_numpy(angular_accel_body, q)
-        timestamp = self.get_clock().now().nanoseconds
-        
-        self.linear_accel_real = linear_accel
-        self.angular_accel_real = angular_accel
-        self.imu_timestamp = timestamp
-    
-    
-    
-    
-        
+  
     
     def map_thrust(self, input_value):
         """Maps the force requested by MPC to a value between [0,1] for motor command
@@ -1254,10 +1231,11 @@ class OffboardControl(Node):
                 simx_v = simx[:-1,7:10]
                 simx_v_next = simx[1:,7:10]
                 pad = np.zeros(3)
-                x_y = np.hstack((self.lin_acc_offset[1:,0:2], np.zeros((self.lin_acc_offset.shape[0]-1,1))))
-                correction = np.vstack((pad, x_y))
+                correction = np.vstack((pad, self.lin_acc_offset[1:]))
+                #x_y = np.hstack((self.lin_acc_offset[1:,0:2], np.zeros((self.lin_acc_offset.shape[0]-1,1))))
+                #correction = np.vstack((pad, x_y))
                 if self.use_gp:
-                    sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon) - correction/20
+                    sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon) - correction / 20
                 else:
                     sim_accel_pred_lin = (simx_v_next - simx_v) / (self.Tf/self.N_horizon)
                 sim_accel_pred_lin = np.hstack((sim_accel_pred_lin, simx_v_next))
@@ -1325,7 +1303,23 @@ class OffboardControl(Node):
                 
                 gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,(0,3)], real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3)], axis=0, type='lin')
                 gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,(1,4)], real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)], axis=1, type='lin')
-                gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,(2,5)], real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2, type='lin')
+                #gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,(2,5)], real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2, type='lin')
+                
+                
+                
+                t_back = self.gp_prediction_horizon-2
+                z_hist_sim = self.mpc_prediction_history_lin[-2-t_back][:,(2,5)]
+                z_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,2], nan=0)
+                
+                
+                
+                
+                
+                gp_prediction_lin_z = self.predict_z_accel(z_hist_sim, z_hist_real.reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)])
+                
+                
+                
+                
                 
                 #gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
                 #gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
