@@ -641,16 +641,10 @@ class OffboardControl(Node):
         
         
         
-        if self.use_gp:
-        
-            parameters = np.concatenate((self.params, trajectory[1], self.lin_acc_offset[1], self.ang_acc_offset[1]), axis=None)
-        else:
-            parameters = np.concatenate((self.params, trajectory[1],  np.zeros(6)), axis=None)
-        
-        self.ocp_solver.set(1, "p", parameters)
         
         
-        for j in range(2, self.gp_prediction_horizon-1):
+        
+        for j in range(1, self.gp_prediction_horizon-1):
             if self.use_gp:
             
                 parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j],  self.ang_acc_offset[j]), axis=None)
@@ -927,8 +921,8 @@ class OffboardControl(Node):
         ocp.solver_options.tf = self.Tf
         
         # set solver options
-        ocp.solver_options.levenberg_marquardt = 10.0
-        ocp.solver_options.qp_solver_warm_start = 1
+        ocp.solver_options.levenberg_marquardt = 15.0
+        ocp.solver_options.qp_solver_warm_start = 2
         ocp.solver_options.integrator_type = 'ERK'
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'
         ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_OSQP'
@@ -1050,21 +1044,23 @@ class OffboardControl(Node):
         v1 = vel[lin_or_ang][1:]
         pad = np.zeros(3)
         
-        
+        #correction = offset[lin_or_ang]
         correction = np.vstack((pad, offset[lin_or_ang][1:]))
         #x_y = np.hstack((self.lin_acc_offset[1:,0:2], np.zeros((self.lin_acc_offset.shape[0]-1,1))))
         #correction = np.vstack((pad, x_y))
         if self.use_gp:
-            if lin_or_ang == 'lin':
-                accel = (v1 - v0) / (self.Tf/self.N_horizon) - correction / 20
-            else:
-                accel = (v1 - v0) / (self.Tf/self.N_horizon) - correction / 20
-                #accel = (v1 - v0) / (self.Tf/self.N_horizon)
-                #accel[1] = accel[1] - correction[1]/20
+            
+            accel = (v1 - v0) / (self.Tf/self.N_horizon) 
+            
         else:
             accel = (v1 - v0) / (self.Tf/self.N_horizon)
-        accel_vel = np.hstack((accel, v1))
         
+        
+        print(accel)
+        print('----------------------')
+        
+        
+        accel_vel = np.hstack((accel, v1))
         
         history[lin_or_ang].append(accel_vel)
             
@@ -1357,7 +1353,7 @@ class OffboardControl(Node):
                 
                 # linear acceleration for z direction is calulated with multi-step prediction, not single-step prediction
                 t_back = self.gp_prediction_horizon-2
-                z_hist_sim = self.mpc_prediction_history_lin[-2-t_back][:,(2,5)]
+                z_hist_sim = self.mpc_prediction_history_lin[-(self.gp_prediction_horizon+1)][:,(2,5)]
                 z_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,2], nan=0)
                 gp_prediction_lin_z = self.predict_z_accel(z_hist_sim, z_hist_real.reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)])
 
@@ -1391,11 +1387,11 @@ class OffboardControl(Node):
                 
                 
                 t_back = self.gp_prediction_horizon-2
-                y_hist_sim = self.mpc_prediction_history_ang[-2-t_back][:,(0,3)]
+                y_hist_sim = self.mpc_prediction_history_ang[-(self.gp_prediction_horizon+1)][:,(0,3)]
                 y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,6], nan=0)
                 gp_prediction_ang_x = self.predict_z_accel(y_hist_sim, y_hist_real.reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3)])
                 
-                y_hist_sim = self.mpc_prediction_history_ang[-2-t_back][:,(1,4)]
+                y_hist_sim = self.mpc_prediction_history_ang[-(self.gp_prediction_horizon)][:,(1,4)]
                 y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,7], nan=0)
                 gp_prediction_ang_y = self.predict_z_accel(y_hist_sim, y_hist_real.reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4)])
                 

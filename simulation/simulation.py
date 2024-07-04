@@ -256,7 +256,7 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.dims.N = N_horizon
     
 
-    ocp.parameter_values = np.concatenate((parameters, np.zeros(3), np.zeros(3)), axis=None)
+    ocp.parameter_values = np.concatenate((parameters), axis=None)
 
     # define weighing matrices
     Q_p = np.diag([1,1,1000])
@@ -308,8 +308,11 @@ def setup(x0, N_horizon, Tf, RTI=False):
     ocp.solver_options.tf = Tf
 
 
-    ocp.solver_options.levenberg_marquardt = 20.0
-    ocp.solver_options.qp_solver_warm_start = 2
+    ocp.solver_options.levenberg_marquardt = 10.0
+    ocp.solver_options.qp_solver_warm_start = 1
+    ocp.solver_options.integrator_type = 'ERK'
+    ocp.solver_options.nlp_solver_type = 'SQP_RTI'
+    ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_OSQP'
     # create ACADOS solver
     solver_json = "acados_ocp_" + model.name + ".json"
 
@@ -325,7 +328,7 @@ def main(use_RTI=False):
 
     ocp_solver, integrator = setup(x0, N_horizon, Tf, use_RTI)
 
-    Nsim = 1000
+    Nsim = 10
     simX = np.ndarray((Nsim + 1, nx))
     simU = np.ndarray((Nsim + 1, nu))
 
@@ -336,54 +339,43 @@ def main(use_RTI=False):
     # closed loop
     for i in range(Nsim):
         
-        # set different setpoint for attitude
-        if i == 100:
-            q_ref = np.array([1,0,0,0])
-            y_ref = np.concatenate((np.array([0, 0, 0]), q_ref ), axis=None)
-            
-            parameters = np.concatenate((params, y_ref, np.ones(3)*10, np.zeros(3)), axis=None)
-            
-            for j in range(N_horizon):
-
-                ocp_solver.set(j, "p", parameters)
-            ocp_solver.set(N_horizon, "p", parameters)
-            
-            
-            u = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=False)
-            simU[i, :] = np.ones(4) * hover_thrust
-            
-            print('x0: {}'.format(ocp_solver.get(0, 'x')[7:10]))
-            print('x1: {}'.format(ocp_solver.get(1, 'x')[7:10]))
-            print('x2: {}'.format(ocp_solver.get(2, 'x')[7:10]))
-            print('x3: {}'.format(ocp_solver.get(3, 'x')[7:10]))
-            print('x4: {}'.format(ocp_solver.get(4, 'x')[7:10]))
-            
         
-        
-        else:
-            u = ocp_solver.solve_for_x0(x0_bar=simX[i, :], fail_on_nonzero_status=False)
-            simU[i, :] = np.ones(4) * hover_thrust
-        
-            
-            
-        
-        
-       
-        
-        
-       
-        
-        
-        #print(ocp_solver.get_cost())
-        # print cost for current iteration
-        #print(ocp_solver.get_cost())
-        
-        # check if q stays unit quaternion
-        #x = ocp_solver.get(1, "x")
-        #simX[i+1, :] = x
-        #
-        # simulate system
+        simU[i, :] = np.array([hover_thrust, hover_thrust, hover_thrust, hover_thrust])
         simX[i + 1, :] = integrator.simulate(x=simX[i, :], u=simU[i, :])
+        
+        
+        
+    #
+    #
+    v0 = simX[:,7:10][:-1]
+    v1 = simX[:,7:10][1:]
+    
+    
+    a = (v1-v0) *20
+    print(a)   
+        
+    x_0 = simX[0,7:10]
+    x_1 = simX[1,7:10]
+    x_2 = simX[2,7:10]
+    x_3 = simX[3,7:10]
+    x_4 = simX[4,7:10]
+    #
+    #
+    #x_0 = x_0  
+    #x_1 = x_1 - 0.1
+    #x_2 = x_2 - 0.2
+    #x_3 = x_3 - 0.3
+    #x_4 = x_4 - 0.4
+    #print(a-0.05)
+    
+    print('x0: {}'.format(x_0))
+    print('x1: {}'.format(x_1))
+    print('x2: {}'.format(x_2))
+    print('x3: {}'.format(x_3))
+    print('x4: {}'.format(x_4))
+        #
+        
+        
         
         #thrust = hover_thrust
         #
