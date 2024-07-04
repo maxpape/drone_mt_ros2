@@ -74,7 +74,7 @@ int drone_ode_acados_sim_create(drone_ode_sim_solver_capsule * capsule)
     bool tmp_bool;
 
     
-    double Tsim = 0.05;
+    double Tsim = 0.05000000000000001;
 
     
     // explicit ode

@@ -441,7 +441,7 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
         drone_ode_acados_update_time_steps(capsule, N, new_time_steps);
     }
     else
-    {double time_step = 0.05;
+    {double time_step = 0.05000000000000001;
         for (int i = 0; i < N; i++)
         {
             ocp_nlp_in_set(nlp_config, nlp_dims, nlp_in, i, "Ts", &time_step);

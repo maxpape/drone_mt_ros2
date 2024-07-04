@@ -252,6 +252,7 @@ class OffboardControl(Node):
         self.offboard_setpoint_counter = 0
         self.vehicle_status = VehicleStatus()
         self.ocp_solver = None
+        self.ocp_solver_nominal = None
         
         # variables for ACADOS MPC
         self.N_horizon = 20
@@ -358,6 +359,7 @@ class OffboardControl(Node):
         self.mpc_prediction_history_lin = collections.deque(maxlen=history_length)
         self.mpc_prediction_history_ang = collections.deque(maxlen=history_length)
         self.use_gp = False
+        self.offset_applied = False
         self.use_ard = False
         self.online_regression = False
         self.show_lin = True
@@ -637,7 +639,8 @@ class OffboardControl(Node):
                 
         
         parameters = np.concatenate((self.params, trajectory[0], np.zeros(6)), axis=None)
-        self.ocp_solver.set(0, "p", parameters)  
+        self.ocp_solver.set(0, "p", parameters) 
+        self.ocp_solver_nominal.set(0, "p", parameters)  
         
         
         
@@ -648,18 +651,25 @@ class OffboardControl(Node):
             if self.use_gp:
             
                 parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j],  self.ang_acc_offset[j]), axis=None)
+                parameters_nominal = np.concatenate((self.params, trajectory[j],  np.zeros(6)), axis=None)
+                self.offset_applied = True
             else:
                 parameters = np.concatenate((self.params, trajectory[j],  np.zeros(6)), axis=None)
-            
+                parameters_nominal = np.concatenate((self.params, trajectory[j],  np.zeros(6)), axis=None)
+                self.offset_applied = False
+                 
+            self.ocp_solver_nominal.set(j, "p", parameters_nominal) 
             self.ocp_solver.set(j, "p", parameters)
             
         for j in range(self.gp_prediction_horizon-1, self.N_horizon):
             parameters = np.concatenate((self.params, trajectory[j], np.zeros(6)), axis=None)
             
             self.ocp_solver.set(j, "p", parameters)
+            self.ocp_solver_nominal.set(j, "p", parameters)
         
         parameters = np.concatenate((self.params, trajectory[self.N_horizon], np.zeros(6)), axis=None)
-        self.ocp_solver.set(self.N_horizon, "p", parameters)  
+        self.ocp_solver.set(self.N_horizon, "p", parameters)
+        self.ocp_solver_nominal.set(self.N_horizon, "p", parameters)  
     
     
     def parameter_callback(self, params):
@@ -755,14 +765,14 @@ class OffboardControl(Node):
             #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
             #kern.lengthscale.constrain_bounded(1, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = 0.01
+            gpmodel.Gaussian_noise.variance = 0.001
             gpmodel.Gaussian_noise.variance.fix()
         elif type == 1:
             kern = GPy.kern.RBF(input_dim=2, variance=self.variance[1], lengthscale=self.lengthscale[1], active_dims=[0,1], ARD=self.use_ard)
             #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
             #kern.lengthscale.constrain_bounded(1, 7, warning=False)  # Set lengthscale bounds
             gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = 0.01
+            gpmodel.Gaussian_noise.variance = 0.001
             gpmodel.Gaussian_noise.variance.fix()
         
         elif type == 3:
@@ -931,6 +941,7 @@ class OffboardControl(Node):
         # create ACADOS solver
         solver_json = 'acados_ocp_' + model.name + '.json'
         self.ocp_solver = AcadosOcpSolver(ocp, json_file = solver_json)
+        self.ocp_solver_nominal = AcadosOcpSolver(ocp, json_file = solver_json)
         
         
         
@@ -1039,27 +1050,24 @@ class OffboardControl(Node):
                     "ang": self.mpc_prediction_history_ang,
                     }
         
-        # calculate linear acceleration for next time steps; used to predict error
-        v0 = vel[lin_or_ang][:-1]
-        v1 = vel[lin_or_ang][1:]
-        pad = np.zeros(3)
         
-        #correction = offset[lin_or_ang]
-        correction = np.vstack((pad, offset[lin_or_ang][1:]))
-        #x_y = np.hstack((self.lin_acc_offset[1:,0:2], np.zeros((self.lin_acc_offset.shape[0]-1,1))))
-        #correction = np.vstack((pad, x_y))
-        if self.use_gp:
+        velocity = vel[lin_or_ang]
+        
+        # if GP is used, substract acceleration offset added in model from predicted velocity
+        
+        #if self.use_gp and self.offset_applied:
+        #    pad = np.zeros(3)
+        #    correction = np.vstack((pad, pad, offset[lin_or_ang][1:])) 
+        #    velocity = velocity - correction / 20
+        
+        
+        
+        v0 = velocity[:-1]
+        v1 = velocity[1:]
+        
+        
+        accel = (v1 - v0) / (self.Tf/self.N_horizon)
             
-            accel = (v1 - v0) / (self.Tf/self.N_horizon) 
-            
-        else:
-            accel = (v1 - v0) / (self.Tf/self.N_horizon)
-        
-        
-        print(accel)
-        print('----------------------')
-        
-        
         accel_vel = np.hstack((accel, v1))
         
         history[lin_or_ang].append(accel_vel)
@@ -1211,10 +1219,10 @@ class OffboardControl(Node):
                 
                 self.publish_motor_command(np.zeros(4))
                
-                
+                U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
                 # get current state and predicted next state
-                simx_0 = self.ocp_solver.get(0, 'x')
-                simx_1 = self.ocp_solver.get(1, 'x')
+                simx_0 = self.ocp_solver_nominal.get(0, 'x')
+                simx_1 = self.ocp_solver_nominal.get(1, 'x')
                 
                 
                 # extract linear and angular velocity
@@ -1270,22 +1278,23 @@ class OffboardControl(Node):
                 
 
                   
-            else:      
+            else:
+                # set parameters and trajectory     
                 self.set_mpc_target_pos()
+                # solve OCP and publish motor command
                 U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
                 command = np.asarray([self.map_thrust(u) for u in U])
                 self.publish_motor_command(command)
                 
-                
-                
-                # get simulated response for next time steps
+                U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
+                # get simulated response for next #prediction_horizon time steps
                 simx = []
                 for i in range(self.gp_prediction_horizon):
-                    simx.append(self.ocp_solver.get(i, 'x'))
+                    simx.append(self.ocp_solver_nominal.get(i, 'x'))
                 simx = np.asarray(simx)
                 
                 
-                # calculate linear acceleration for next time steps; used to predict erroaxis,r
+                # calculate linear acceleration for next time steps; used to predict error
                 sim_accel_pred_lin = self.calculate_sim_acc_from_vel(simx, 'lin')
                 
                 
@@ -1332,19 +1341,28 @@ class OffboardControl(Node):
                 
              
                 # prediction of linear acceleration error
-                real_hist_lin = np.nan_to_num(np.asarray(list(self.imu_history)[1:])[:,0:6], nan=0)
-                sim_hist_lin = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[:-1])[:,0:6], nan=0)
-                sim_accel_pred_lin_ext = np.vstack((sim_accel_pred_lin, self.sim_imu_lin_history[-2][0:6]))
+                real_hist_lin = np.nan_to_num(np.asarray(list(self.imu_history)[1:])[:,0:6], nan=0)             # history of measured acceleration and velocity
+                sim_hist_lin = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[:-1])[:,0:6], nan=0)     # history of acceleration and velocity from 1-step prediction of mpc
+                sim_accel_pred_lin_ext = np.vstack((sim_accel_pred_lin, self.sim_imu_lin_history[-2][0:6]))     # multi-step prediction of acceleration and velocity from mpc
                 
                 
                 
+                # input:  acc and vel
+                # output: acc
                 gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,(0,3)], real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3)], type=0)
                 gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,(1,4)], real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)], type=1)
                 #gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,(2,5)], real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2, type='lin')
                 
                 ## linear acceleration for z direction is calulated with multi-step prediction, not single-step prediction
-                #t_back = self.gp_prediction_horizon-2
-                #y_hist_sim = self.mpc_prediction_history_lin[-2-t_back][:,(1,4)]
+                #t_back = self.gp_prediction_horizon
+                
+                
+                #x_hist_sim = self.mpc_prediction_history_lin[-(self.gp_prediction_horizon+1)][:,(0,3)]
+                #x_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,0], nan=0)
+                #gp_prediction_lin_x = self.predict_z_accel(x_hist_sim, x_hist_real.reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3)])
+                #
+                #
+                #y_hist_sim = self.mpc_prediction_history_lin[-(self.gp_prediction_horizon+1)][:,(1,4)]
                 #y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,1], nan=0)
                 #gp_prediction_lin_y = self.predict_z_accel(y_hist_sim, y_hist_real.reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)])
                 
@@ -1352,7 +1370,7 @@ class OffboardControl(Node):
                 
                 
                 # linear acceleration for z direction is calulated with multi-step prediction, not single-step prediction
-                t_back = self.gp_prediction_horizon-2
+                #t_back = self.gp_prediction_horizon-2
                 z_hist_sim = self.mpc_prediction_history_lin[-(self.gp_prediction_horizon+1)][:,(2,5)]
                 z_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,2], nan=0)
                 gp_prediction_lin_z = self.predict_z_accel(z_hist_sim, z_hist_real.reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)])
@@ -1364,9 +1382,11 @@ class OffboardControl(Node):
 
                 
                 # calculate offset from prediction of GP and MPC
+                # lin_acc_offset: estimated real acceleration from GP
                 lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1,0].reshape(-1,1), gp_prediction_lin_y[:-1,0].reshape(-1,1), gp_prediction_lin_z[:-1,0].reshape(-1,1)))
                 self.lin_acc_offset = lin_acc_offset
                 self.gp_prediction_history_lin.append(lin_acc_offset)
+                
                 self.lin_acc_offset = self.lin_acc_offset - sim_accel_pred_lin[:,0:3]
                 
                 
@@ -1382,20 +1402,22 @@ class OffboardControl(Node):
                 #gp_prediction_ang_x = self.predict_next_y(sim_hist_ang[:,(0,3)], real_hist_ang[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3)], type=3)
                 #gp_prediction_ang_y = self.predict_next_y(sim_hist_ang[:,(1,4)], real_hist_ang[:,1].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4)], type=4)
                 gp_prediction_ang_z = self.predict_next_y(sim_hist_ang[:,(2,5)], real_hist_ang[:,2].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5)], type=5)
-                
-                
-                
-                
-                t_back = self.gp_prediction_horizon-2
+                #
+                #
+                #
+                #
+                #t_back = self.gp_prediction_horizon-2
                 y_hist_sim = self.mpc_prediction_history_ang[-(self.gp_prediction_horizon+1)][:,(0,3)]
                 y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,6], nan=0)
                 gp_prediction_ang_x = self.predict_z_accel(y_hist_sim, y_hist_real.reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3)])
-                
-                y_hist_sim = self.mpc_prediction_history_ang[-(self.gp_prediction_horizon)][:,(1,4)]
+                #
+                y_hist_sim = self.mpc_prediction_history_ang[-(self.gp_prediction_horizon+1)][:,(1,4)]
                 y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_prediction_horizon-1):])[:,7], nan=0)
                 gp_prediction_ang_y = self.predict_z_accel(y_hist_sim, y_hist_real.reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4)])
                 
-                
+                #gp_prediction_ang_x = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_ang_y = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_ang_z = np.zeros((self.gp_prediction_horizon, 1))
                 
                 
                 
