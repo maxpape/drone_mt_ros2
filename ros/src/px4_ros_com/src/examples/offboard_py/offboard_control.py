@@ -1420,8 +1420,8 @@ class OffboardControl(Node):
                 gp_prediction_lin_z, gp_prediction_lin_z_var = self.predict_accel_lin(z_hist_sim, error[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2) 
 
 
-                certainty_z = 1 - (gp_prediction_lin_z_var / np.max(gp_prediction_lin_z_var)) 
-                gp_prediction_lin_z = np.multiply(gp_prediction_lin_z, certainty_z)
+                #certainty_z = 1 - (gp_prediction_lin_z_var / np.max(gp_prediction_lin_z_var)) * 0.5
+                #gp_prediction_lin_z = np.multiply(gp_prediction_lin_z, certainty_z)
                 # set prediction to 0 (for testing)
                 #gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
                 #gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
