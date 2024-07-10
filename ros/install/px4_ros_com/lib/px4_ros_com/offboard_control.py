@@ -302,7 +302,7 @@ class OffboardControl(Node):
                             self.c_tau])
         
         # imu data
-        history_length = 22
+        history_length = 30
         
         self.linear_accel_real = np.zeros(3)
         self.angular_accel_real = np.zeros(3)
@@ -344,16 +344,16 @@ class OffboardControl(Node):
         # gp parameters
         self.lengthscale_lin = np.array([5,5,5])
         self.scale_lin = np.array([0.02, 0.02, 0.02])
-        self.noise_variance_lin = 0.001
+        self.noise_variance_lin = 0.25
         
         self.lengthscale_ang = np.array([5,5,5])
         self.scale_ang = np.array([0.02, 0.02, 0.02])
-        self.noise_variance_ang = 0.001
+        self.noise_variance_ang = 0.55
         
 
         
-        self.gp_prediction_horizon = 20
-        self.gp_multi_step_pred_history = 20
+        self.gp_prediction_horizon = 12
+        self.gp_multi_step_pred_history = 8
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.sim_x_last = self.current_state[:-1]
@@ -369,10 +369,10 @@ class OffboardControl(Node):
         self.show_lin = True
         self.backsteps_plot = 0
         
-        self.length_hypers_lin = [[5,5,5,5,5,5], [5,5,5,5,5,5], [5,5,5,5,5,5]]
-        self.scale_hypers_lin = [0.5, 0.5, 0.5]
-        self.length_hypers_ang = [[5,5,5,5,5,5], [5,5,5,5,5,5], [5,5,5,5,5,5]]
-        self.scale_hypers_ang = [0.5, 0.5, 0.5]
+        self.length_hypers_lin = [[1,5,7,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7]]
+        self.scale_hypers_lin = [1, 1, 1]
+        self.length_hypers_ang = [[1,5,7,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7]]
+        self.scale_hypers_ang = [1, 1, 1]
         
         
         kerns = [GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
@@ -381,11 +381,15 @@ class OffboardControl(Node):
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True)]
-        lower_lenght = [0.001, 0.001, 30,30,30,30]
-        upper_lenght = [6, 6, 50,50,50,50]
+        lower_lenght = [0.1, 0.1, 4,4,4,4]
+        upper_lenght = [10, 10, 20,20,20,20]
         for i in range(6):
-            kerns[i].lengthscale[[i]].constrain_bounded(lower_lenght[i], upper_lenght[i])
-            kerns[i].variance.constrain_bounded(1e-3, 5)
+            for j in range(6):
+                kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j], upper_lenght[j])
+            #kerns[i].variance.constrain_bounded(1e-3, 5)
+            kerns[i].variance.fix()
+        
+        
         
         self.models = [GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[0]),
                        GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[1]),
@@ -397,6 +401,7 @@ class OffboardControl(Node):
         for model in self.models:
             model.Gaussian_noise.variance = self.noise_variance_lin
             model.Gaussian_noise.variance.fix()
+            
         
         
         
@@ -786,7 +791,7 @@ class OffboardControl(Node):
         self.models[axis].Gaussian_noise.variance = self.noise_variance_lin
         
         
-        if self.online_regression and self.counter == axis:
+        if self.online_regression :
             self.models[axis].optimize(max_iters=1)
             
             
@@ -796,10 +801,10 @@ class OffboardControl(Node):
         
         self.scale_hypers_lin[axis] = self.models[axis].rbf.variance[0]
         
-        #if axis == 0:
-        #    print(self.length_hypers_lin[axis])
-        #    print(self.scale_hypers_lin[axis])
-        #    print('-------------')
+        if axis == 0 and self.show_lin:
+            print(self.length_hypers_lin[axis])
+            print(self.scale_hypers_lin[axis])
+            print('-------------')
         mean, var = self.models[axis].predict(new_x)
         
         
@@ -817,9 +822,10 @@ class OffboardControl(Node):
             self.models[axis+3].rbf.lengthscale[i] = self.length_hypers_ang[axis][i] 
         self.models[axis+3].rbf.variance[0] = self.scale_hypers_lin[axis] 
         self.models[axis+3].Gaussian_noise.variance = self.noise_variance_ang
+        self.models[axis+3].Gaussian_noise.variance.fix()
         
         
-        if self.online_regression and self.counter == (axis+3):
+        if self.online_regression :
             self.models[axis+3].optimize(max_iters=1)
          
             
@@ -831,10 +837,10 @@ class OffboardControl(Node):
         
         self.scale_hypers_ang[axis] = self.models[axis].rbf.variance[0]
         
-        #if axis == 0:
-        #    print(self.length_hypers_ang[axis])
-        #    print(self.scale_hypers_ang[axis])
-        #    print('-------------')
+        if axis == 0 and (not self.show_lin):
+            print(self.length_hypers_ang[axis])
+            print(self.scale_hypers_ang[axis])
+            print('-------------')
         mean, var = self.models[axis+3].predict(new_x)
             
             
@@ -1458,15 +1464,6 @@ class OffboardControl(Node):
                 
                 error = real_hist_lin - sim_hist_lin
                 
-                # input:  acc and vel
-                # output: acc
-                #gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,(0,3)], real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3)], type=0)
-                #gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,(1,4)], real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)], type=1)
-                #gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,(2,5)], real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2, type='lin')
-                
-               
-                #gp_prediction_lin_x, gp_prediction_lin_x_var  = self.predict_accel_lin(sim_hist_lin[:,(0,3,6,7,8,9)], error[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)], axis=0, dim=6, active_dims=[0,1,2,3,4,5])
-                #gp_prediction_lin_y, gp_prediction_lin_y_var  = self.predict_next_y(sim_hist_lin[:,(1,4)], error[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)], type=1)
                 
                 
                 
@@ -1474,14 +1471,38 @@ class OffboardControl(Node):
                 x_hist_sim = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)] 
                 x_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(0,3,12,13,14,15)], nan=0) 
                 error = x_hist_real - x_hist_sim
+                
+                #x_hist_sim1 = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history+1)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)] 
+                #x_hist_real1 = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history):-1])[:,(0,3,12,13,14,15)], nan=0) 
+                #error1 = x_hist_real1 - x_hist_sim1
+                #
+                #x_hist_sim2 = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history+2)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)] 
+                #x_hist_real2 = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history+1):-2])[:,(0,3,12,13,14,15)], nan=0) 
+                #error2 = x_hist_real2 - x_hist_sim2
+                #
+                #x_hist_sim3 = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history+3)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)] 
+                #x_hist_real3 = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history+2):-3])[:,(0,3,12,13,14,15)], nan=0) 
+                #error3 = x_hist_real3 - x_hist_sim3
+                #
+                #x_hist_sim4 = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history+4)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)] 
+                #x_hist_real4 = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history+3):-4])[:,(0,3,12,13,14,15)], nan=0) 
+                #error4 = x_hist_real4 - x_hist_sim4
+                #
+                #x_hist_sim5 = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history+5)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)] 
+                #x_hist_real5 = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history+4):-5])[:,(0,3,12,13,14,15)], nan=0) 
+                #error5 = x_hist_real5 - x_hist_sim5
+                #
+                #x_hist_sim = np.vstack((x_hist_sim, x_hist_sim1, x_hist_sim2, x_hist_sim3, x_hist_sim4, x_hist_sim5))
+                #error = np.vstack((error, error1, error2, error3, error4, error5))
                 gp_prediction_lin_x, gp_prediction_lin_x_var = self.predict_accel_lin(x_hist_sim, error[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)], axis=0, dim=6, active_dims=[0,1,2,3,4,5])
                 
+                
+                #print('Min var: {}, Max: var {}, Mean var: {}'.format(np.min(gp_prediction_lin_x_var), np.max(gp_prediction_lin_x_var), np.mean(gp_prediction_lin_x_var)))
+
                 #y_hist_sim = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)]
                 #y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(0,3,12,13,14,15)], nan=0)
                 #error = y_hist_real - y_hist_sim
                 #gp_prediction_lin_y, gp_prediction_lin_y_var = self.predict_accel_lin(y_hist_sim, error[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)], axis=1, dim=6, active_dims=[0,1,2,3,4,5])
-
-
 
                 y_hist_sim = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(1,4,6,7,8,9)]
                 y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(1,4,12,13,14,15)], nan=0)
@@ -1491,11 +1512,11 @@ class OffboardControl(Node):
 
                 
                 
-                certainty_x = 1 - (gp_prediction_lin_x_var / np.max(gp_prediction_lin_x_var))
-                gp_prediction_lin_x = np.multiply(gp_prediction_lin_x, certainty_x)
-            
-                certainty_y = 1 - (gp_prediction_lin_y_var / np.max(gp_prediction_lin_y_var))
-                gp_prediction_lin_y = np.multiply(gp_prediction_lin_y, certainty_y)
+                #certainty_x = 1 - (gp_prediction_lin_x_var / np.max(gp_prediction_lin_x_var))
+                #gp_prediction_lin_x = np.multiply(gp_prediction_lin_x, certainty_x)
+            #
+                #certainty_y = 1 - (gp_prediction_lin_y_var / np.max(gp_prediction_lin_y_var))
+                #gp_prediction_lin_y = np.multiply(gp_prediction_lin_y, certainty_y)
                 
                 
                 z_hist_sim = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(2,5,6,7,8,9)]
@@ -1504,8 +1525,8 @@ class OffboardControl(Node):
                 gp_prediction_lin_z, gp_prediction_lin_z_var = self.predict_accel_lin(z_hist_sim, error[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)], axis=2, dim=6, active_dims=[0,1,2,3,4,5]) 
 
 
-                certainty_z = 1 - (gp_prediction_lin_z_var / np.max(gp_prediction_lin_z_var)) * 0.1
-                gp_prediction_lin_z = np.multiply(gp_prediction_lin_z, certainty_z)
+                #certainty_z = 1 - (gp_prediction_lin_z_var / np.max(gp_prediction_lin_z_var)) * 0.1
+                #gp_prediction_lin_z = np.multiply(gp_prediction_lin_z, certainty_z)
                 # set prediction to 0 (for testing)
                 #gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
                 #gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
@@ -1545,8 +1566,8 @@ class OffboardControl(Node):
                 error = x_hist_real - x_hist_sim
                 gp_prediction_ang_x, gp_prediction_ang_x_var = self.predict_accel_ang(x_hist_sim, error[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)], axis=0, dim=6, active_dims=[0,1,2,3,4,5])
                
-                certainty_x= 1 - (gp_prediction_ang_x_var / np.max(gp_prediction_ang_x_var)) * 0.3 
-                gp_prediction_ang_x = np.multiply(gp_prediction_ang_x, certainty_x)
+                #certainty_x= 1 - (gp_prediction_ang_x_var / np.max(gp_prediction_ang_x_var)) * 0.3 
+                #gp_prediction_ang_x = np.multiply(gp_prediction_ang_x, certainty_x)
                
                
                 #y_hist_sim = self.mpc_prediction_history_ang[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(1,4,6,7,8,9)]
@@ -1554,13 +1575,13 @@ class OffboardControl(Node):
                 #error = y_hist_real - y_hist_sim
                 #gp_prediction_ang_y, gp_prediction_ang_y_var = self.predict_accel_ang(y_hist_sim, error[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)], axis=1, dim=6, active_dims=[0,1,2,3,4,5])
 
-                y_hist_sim = self.mpc_prediction_history_ang[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)]
-                y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(6,9,12,13,14,15)], nan=0)
+                y_hist_sim = self.mpc_prediction_history_ang[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(1,4,6,7,8,9)]
+                y_hist_real = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(7,10,12,13,14,15)], nan=0)
                 error = y_hist_real - y_hist_sim
-                gp_prediction_ang_y, gp_prediction_ang_y_var = self.predict_accel_ang(y_hist_sim, error[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)], axis=1, dim=6, active_dims=[0,1,2,3,4,5])
+                gp_prediction_ang_y, gp_prediction_ang_y_var = self.predict_accel_ang(y_hist_sim, error[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)], axis=1, dim=6, active_dims=[0,1,2,3,4,5])
 
-                certainty_y = 1 - (gp_prediction_ang_y_var / np.max(gp_prediction_ang_y_var)) * 0.3
-                gp_prediction_ang_y = np.multiply(gp_prediction_ang_y, certainty_y)
+                #certainty_y = 1 - (gp_prediction_ang_y_var / np.max(gp_prediction_ang_y_var)) * 0.3
+                #gp_prediction_ang_y = np.multiply(gp_prediction_ang_y, certainty_y)
                
                
                 z_hist_sim = self.mpc_prediction_history_ang[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(2,5,6,7,8,9)]
@@ -1568,8 +1589,8 @@ class OffboardControl(Node):
                 error = z_hist_real - z_hist_sim
                 gp_prediction_ang_z, gp_prediction_ang_z_var = self.predict_accel_ang(z_hist_sim, error[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)], axis=2, dim=6, active_dims=[0,1,2,3,4,5])
 
-                certainty_z = 1 - (gp_prediction_ang_z_var / np.max(gp_prediction_ang_z_var)) 
-                gp_prediction_ang_z = np.multiply(gp_prediction_ang_z, certainty_z)
+                #certainty_z = 1 - (gp_prediction_ang_z_var / np.max(gp_prediction_ang_z_var)) 
+                #gp_prediction_ang_z = np.multiply(gp_prediction_ang_z, certainty_z)
                 
                 self.counter += 1
                 if self.counter == 6:
