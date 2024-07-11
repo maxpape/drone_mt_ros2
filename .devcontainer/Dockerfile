@@ -1,4 +1,4 @@
-FROM osrf/ros:humble-desktop-full
+FROM ros:humble
 
 # Add vscode user with same UID and GID as your host system
 # (copied from https://code.visualstudio.com/remote/advancedcontainers/add-nonroot-user#_creating-a-nonroot-user)
@@ -38,3 +38,4 @@ RUN echo "source /opt/ros/${ROS_DISTRO}/setup.bash" >> ~/.bashrc
 RUN echo "source /drone_mt_ros2/ros/install/local_setup.bash" >> ~/.bashrc
 RUN echo "export LD_LIBRARY_PATH=\$LD_LIBRARY_PATH:/drone_mt_ros2/acados/lib " >> ~/.bashrc
 RUN echo "export ACADOS_SOURCE_DIR=/drone_mt_ros2/acados " >> ~/.bashrc
+

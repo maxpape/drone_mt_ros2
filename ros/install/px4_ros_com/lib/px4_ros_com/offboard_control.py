@@ -205,7 +205,7 @@ class OffboardControl(Node):
         self.Tf = 1
         self.nx = 17
         self.nu = 4
-        self.Tmax = 9
+        self.Tmax = 5
         self.Tmin = 1
         self.vmax = 3
         self.angular_vmax = 1.5
@@ -213,7 +213,7 @@ class OffboardControl(Node):
         self.max_motor_rpm = 1100
         
         # parameters for system model
-        self.m = 1.5
+        self.m = 0.4
         
         self.g = -9.81
         self.jxx = 0.029125
@@ -221,14 +221,14 @@ class OffboardControl(Node):
         self.jzz = 0.055225
        
         
-        self.d_x0 = 0.107
-        self.d_x1 = 0.107 
-        self.d_x2 = 0.107 
-        self.d_x3 = 0.107 
-        self.d_y0 = 0.0935
-        self.d_y1 = 0.0935
-        self.d_y2 = 0.0935
-        self.d_y3 = 0.0935
+        self.d_x0 = 0.094
+        self.d_x1 = 0.094 
+        self.d_x2 = 0.094 
+        self.d_x3 = 0.094 
+        self.d_y0 = 0.072
+        self.d_y1 = 0.072
+        self.d_y2 = 0.072
+        self.d_y3 = 0.072
         self.c_tau = 0.000806428
         self.hover_thrust = -self.g*self.m/4
         
@@ -323,7 +323,7 @@ class OffboardControl(Node):
             self.mpc_prediction_history_ang.append(np.zeros((self.gp_prediction_horizon-1, 6)))
         
         #setpoint variables
-        self.position_setpoint = np.array([0,0,2])
+        self.position_setpoint = np.array([0,0,0])
         self.velocity_setpoint = np.zeros(3)
         self.attitude_setpoint = np.asarray([np.sqrt(2)/2, 0, 0, -np.sqrt(2)/2])
         self.roll_setpoint = 0
@@ -890,6 +890,7 @@ class OffboardControl(Node):
         
         self.state_timestamp = vehicle_odometry.timestamp
         self.position = functions.NED_to_ENU(vehicle_odometry.position)
+        #self.position = functions.NED_to_ENU(np.array([0,0,0]))
         self.velocity = functions.NED_to_ENU(vehicle_odometry.velocity)
         self.attitude = functions.NED_to_ENU(vehicle_odometry.q)
         self.angular_velocity = functions.NED_to_ENU(vehicle_odometry.angular_velocity)
@@ -1103,14 +1104,13 @@ class OffboardControl(Node):
         self.update_current_state()
          
         # wait until enough heartbeat signals have been sent
-        if self.offboard_setpoint_counter == 10:
-            self.engage_offboard_mode()
-            self.arm()
-        elif self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
+        
+        if self.vehicle_status.nav_state == VehicleStatus.NAVIGATION_STATE_OFFBOARD:
             # if in offboard mode: get setpoint from parameters, get optimal U, publish motor command
             
+            
             if self.offboard_setpoint_counter < 100:
-                
+                self.offboard_setpoint_counter += 1
                 # let solver warm up before actually publishing commands
                 
                 U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
@@ -1178,6 +1178,7 @@ class OffboardControl(Node):
 
             elif self.offboard_setpoint_counter == 100:
                 print('starting control')
+                self.offboard_setpoint_counter += 1
                   
             else:      
                 self.set_mpc_target_pos()
@@ -1266,13 +1267,15 @@ class OffboardControl(Node):
                 
                 
                 
-                gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,(0,3)], real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3)], axis=0, type='lin')
-                gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,(1,4)], real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)], axis=1, type='lin')
-                gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,(2,5)], real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2, type='lin')
+                #gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,(0,3)], real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3)], axis=0, type='lin')
+                #gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,(1,4)], real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4)], axis=1, type='lin')
+                #gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,(2,5)], real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5)], axis=2, type='lin')
                 #gp_prediction_lin_x = self.predict_next_y(sim_hist_lin[:,0].reshape(-1,1), real_hist_lin[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,0].reshape(-1,1), axis=0)
                 #gp_prediction_lin_y = self.predict_next_y(sim_hist_lin[:,1].reshape(-1,1), real_hist_lin[:,1].reshape(-1,1), sim_accel_pred_lin_ext[:,1].reshape(-1,1), axis=1)
                 #gp_prediction_lin_z = self.predict_next_y(sim_hist_lin[:,2].reshape(-1,1), real_hist_lin[:,2].reshape(-1,1), sim_accel_pred_lin_ext[:,2].reshape(-1,1), axis=2)
-                
+                gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon,1))
+                gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon,1))
+                gp_prediction_lin_z = np.zeros((self.gp_prediction_horizon,1))
                 
                 
                 # calculate offset from prediction of GP and MPC
@@ -1285,8 +1288,8 @@ class OffboardControl(Node):
                 
                 
                 ## prediction of angular acceleration error
-                real_hist_ang = np.nan_to_num(np.asarray(list(self.imu_history)[:-1])[:, 6:12], nan=0)
-                sim_hist_ang = np.nan_to_num(np.asarray(list(self.sim_imu_ang_history)[1:])[:, 0:6], nan=0)
+                real_hist_ang = np.nan_to_num(np.asarray(list(self.imu_history)[1:])[:, 6:12], nan=0)
+                sim_hist_ang = np.nan_to_num(np.asarray(list(self.sim_imu_ang_history)[:-1])[:, 0:6], nan=0)
                 sim_accel_pred_ang_ext = np.vstack((sim_accel_pred_ang, self.sim_imu_ang_history[-2][0:6]))
                 
                 gp_prediction_ang_x = gp_prediction_lin_x
@@ -1381,7 +1384,8 @@ class OffboardControl(Node):
                 
                 
                 # optinally print position and attitude
-                #print('Position: {}'.format(self.position))
+                print('Position: {}'.format(self.position))
+                print('Position setpoint: {}'.format(self.position_setpoint))
                 #print('Velocity: {}'.format(self.velocity))
                 #print('Attitude: {}'.format(self.attitude))
                 #print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
@@ -1392,8 +1396,7 @@ class OffboardControl(Node):
         if (stop-start)*1000 >= 50:
             print('execution took too long: {:.2f} ms'.format((stop-start)*1000))    
             
-        if self.offboard_setpoint_counter < 200:
-            self.offboard_setpoint_counter += 1
+        
         
         
 

@@ -5,7 +5,7 @@
     "--privileged",
     "--network=host", 
     "--device=/dev/dri:/dev/dri",
-    "--device=/dev/ttyUSB0:/dev/ttyUSB0"
+    "--device=/dev/ttyAMA0:/dev/ttyAMA0"
   ],
   "workspaceMount": "source=${localWorkspaceFolder},target=/${localWorkspaceFolderBasename},type=bind",
   "workspaceFolder": "/${localWorkspaceFolderBasename}",
