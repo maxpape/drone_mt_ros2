@@ -432,6 +432,7 @@ class OffboardControl(Node):
             self.mpc_prediction_history_ang.append(np.zeros((self.gp_prediction_horizon-1, 6)))
         
         #setpoint variables
+        self.is_initial_setpoint = True
         self.position_setpoint = np.array([0,0,2])
         self.velocity_setpoint = np.zeros(3)
         self.attitude_setpoint = np.asarray([np.sqrt(2)/2, 0, 0, -np.sqrt(2)/2])
@@ -442,7 +443,7 @@ class OffboardControl(Node):
         self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint), axis=None)
         self.setpoints = []
         self.trajectory = []
-        self.update_setpoint()
+        #self.update_setpoint()
         
 
         
@@ -613,8 +614,11 @@ class OffboardControl(Node):
         if "yaw" in fields:
             self.yaw_setpoint = yaw
             self.attitude_setpoint = functions.euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
-        
-        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint), axis=None)
+        if self.is_initial_setpoint:
+            self.setpoint = np.concatenate((self.current_state[0:3] + np.array([0,0,2]), self.current_state[3:7]), axis=None)
+            self.is_initial_setpoint = False
+        else:
+            self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint), axis=None)
         self.setpoints.append(self.setpoint)
         
     
@@ -1082,6 +1086,8 @@ class OffboardControl(Node):
         self.velocity = functions.NED_to_ENU(vehicle_odometry.velocity)
         self.attitude = functions.NED_to_ENU(vehicle_odometry.q)
         self.angular_velocity = functions.NED_to_ENU(vehicle_odometry.angular_velocity)
+        if self.is_initial_setpoint:
+            self.update_setpoint()
         
         
         
@@ -1542,20 +1548,20 @@ class OffboardControl(Node):
                 # prepare prediction args for multiprocessing
                 
                 
-                prediction_args = [(np.asarray(hist_sim_lin_x), np.asarray(error_lin_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)]), 0),
-                                    (np.asarray(hist_sim_lin_y), np.asarray(error_lin_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)]), 1),
-                                    (np.asarray(hist_sim_lin_z), np.asarray(error_lin_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)]), 2),
-                                    (np.asarray(hist_sim_ang_x), np.asarray(error_ang_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)]), 3),
-                                    (np.asarray(hist_sim_ang_y), np.asarray(error_ang_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)]), 4),
-                                    (np.asarray(hist_sim_ang_z), np.asarray(error_ang_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)]), 5)]
-                                   
-                f = lambda x: GP.predict_accel(*x)
-                
-               
-                with Pool(processes=4) as pool:
-                    result = pool.map(f, prediction_args)
-                
-                
+                #prediction_args = [(np.asarray(hist_sim_lin_x), np.asarray(error_lin_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)]), 0),
+                #                    (np.asarray(hist_sim_lin_y), np.asarray(error_lin_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)]), 1),
+                #                    (np.asarray(hist_sim_lin_z), np.asarray(error_lin_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)]), 2),
+                #                    (np.asarray(hist_sim_ang_x), np.asarray(error_ang_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)]), 3),
+                #                    (np.asarray(hist_sim_ang_y), np.asarray(error_ang_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)]), 4),
+                #                    (np.asarray(hist_sim_ang_z), np.asarray(error_ang_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)]), 5)]
+                #                   
+                #f = lambda x: GP.predict_accel(*x)
+                #
+               #
+                #with Pool(processes=4) as pool:
+                #    result = pool.map(f, prediction_args)
+                #
+                #
                 
                 ## predict all errors
                 #gp_prediction_lin_x, gp_prediction_lin_x_var = GP.predict_accel(hist_sim_lin_x, error_lin_x[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)], axis=0)
@@ -1570,18 +1576,18 @@ class OffboardControl(Node):
                 
                 
                 
-                #gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
-                #gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
-                #gp_prediction_lin_z = np.zeros((self.gp_prediction_horizon, 1))
-                #gp_prediction_ang_x = np.zeros((self.gp_prediction_horizon, 1))
-                #gp_prediction_ang_y = np.zeros((self.gp_prediction_horizon, 1))
-                #gp_prediction_ang_z = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_lin_x, gp_prediction_lin_x_var = result[0]
-                gp_prediction_lin_y, gp_prediction_lin_y_var = result[1]
-                gp_prediction_lin_z, gp_prediction_lin_z_var = result[2]
-                gp_prediction_ang_x, gp_prediction_ang_x_var = result[3]
-                gp_prediction_ang_y, gp_prediction_ang_y_var = result[4]
-                gp_prediction_ang_z, gp_prediction_ang_z_var = result[5]
+                gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
+                gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
+                gp_prediction_lin_z = np.zeros((self.gp_prediction_horizon, 1))
+                gp_prediction_ang_x = np.zeros((self.gp_prediction_horizon, 1))
+                gp_prediction_ang_y = np.zeros((self.gp_prediction_horizon, 1))
+                gp_prediction_ang_z = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_lin_x, gp_prediction_lin_x_var = result[0]
+                #gp_prediction_lin_y, gp_prediction_lin_y_var = result[1]
+                #gp_prediction_lin_z, gp_prediction_lin_z_var = result[2]
+                #gp_prediction_ang_x, gp_prediction_ang_x_var = result[3]
+                #gp_prediction_ang_y, gp_prediction_ang_y_var = result[4]
+                #gp_prediction_ang_z, gp_prediction_ang_z_var = result[5]
                 
                 
                 
