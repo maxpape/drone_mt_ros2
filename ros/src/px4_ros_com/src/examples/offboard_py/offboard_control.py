@@ -264,7 +264,7 @@ class OffboardControl(Node):
         self.vmax = 3
         self.angular_vmax = 1.5
         self.max_angle_q = 1
-        self.max_motor_rpm = 1100
+        self.max_motor_rpm = 2000
         
         # parameters for system model
         self.m = 0.726
@@ -423,8 +423,8 @@ class OffboardControl(Node):
             self.state_history_sim.append(self.current_state)
             self.gp_prediction_history_lin.append(np.zeros((self.gp_prediction_horizon-1, 3)))
             self.gp_prediction_history_ang.append(np.zeros((self.gp_prediction_horizon-1, 3)))
-            self.mpc_prediction_history_lin.append(np.zeros((self.gp_prediction_horizon-1, 6)))
-            self.mpc_prediction_history_ang.append(np.zeros((self.gp_prediction_horizon-1, 6)))
+            self.mpc_prediction_history_lin.append(np.zeros((self.gp_prediction_horizon-1, 10)))
+            self.mpc_prediction_history_ang.append(np.zeros((self.gp_prediction_horizon-1, 10)))
         
         #setpoint variables
         self.position_setpoint = np.array([0,0,1.5])
@@ -1118,7 +1118,7 @@ class OffboardControl(Node):
         Returns:
             float: mapped motor input
         """
-        output = (372.7249*input_value**0.6885846)/1100
+        output = (372.7249*input_value**0.6885846)/self.max_motor_rpm
         
         if output > 1:
             return 1
@@ -1131,7 +1131,7 @@ class OffboardControl(Node):
         """Inverse map thrust. Calculate current state of force from motor for MPC. Convert from [%] throttle readout from motors to force.
 
         Args:
-            input_value (int): motor speed. value between [0, 1500] 
+            input_value (int): motor speed. value between [0, 2000] 
 
         Returns:
             float: current force of motor
@@ -1280,15 +1280,11 @@ class OffboardControl(Node):
         msg.timestamp = int(self.get_clock().now().nanoseconds / 1000)
         
         # correct motor mapping: difference from paper to PX4
-        #msg.control[0] = control[0]  # Motor 1
-        #msg.control[1] = control[1]  # Motor 2
-        #msg.control[2] = control[2]  # Motor 3
-        #msg.control[3] = control[3]  # Motor 4
+        msg.control[0] = control[0]  # Motor 1
+        msg.control[1] = control[1]  # Motor 2
+        msg.control[2] = control[2]  # Motor 3
+        msg.control[3] = control[3]  # Motor 4
         
-        msg.control[0] = self.motor_speed_0  # Motor 1
-        msg.control[1] = 0  # Motor 2
-        msg.control[2] = 0  # Motor 3
-        msg.control[3] = 0  # Motor 4
         
         self.motor_command_publisher.publish(msg)
         

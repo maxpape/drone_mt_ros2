@@ -89,6 +89,7 @@ INCLUDE_PATH = /drone_mt_ros2/acados/include
 LIB_PATH = /drone_mt_ros2/acados/lib
 
 # preprocessor flags for make's implicit rules
+CPPFLAGS += -DACADOS_WITH_OSQP
 CPPFLAGS+= -I$(INCLUDE_PATH)
 CPPFLAGS+= -I$(INCLUDE_PATH)/acados
 CPPFLAGS+= -I$(INCLUDE_PATH)/blasfeo/include
