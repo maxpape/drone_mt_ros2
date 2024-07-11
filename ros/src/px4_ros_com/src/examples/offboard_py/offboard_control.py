@@ -381,11 +381,19 @@ class OffboardControl(Node):
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True)]
-        lower_lenght = [0.1, 0.1, 4,4,4,4]
-        upper_lenght = [10, 10, 20,20,20,20]
-        for i in range(6):
+        lower_lenght_lin = [0.1, 0.1, 4,4,4,4]
+        upper_lenght_lin = [10, 10, 20,20,20,20]
+        lower_lenght_ang = [0.1, 0.1, 0.1,0.1,0.1,0.1]
+        upper_lenght_ang = [50,50,50,50,50,50]
+        
+        for i in range(3):
             for j in range(6):
-                kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j], upper_lenght[j])
+                kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght_lin[j], upper_lenght_lin[j])
+            #kerns[i].variance.constrain_bounded(1e-3, 5)
+            kerns[i].variance.fix()
+        for i in range(3,6):
+            for j in range(6):
+                kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght_ang[j], upper_lenght_ang[j])
             #kerns[i].variance.constrain_bounded(1e-3, 5)
             kerns[i].variance.fix()
         
