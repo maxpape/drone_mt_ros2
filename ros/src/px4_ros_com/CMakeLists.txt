@@ -126,6 +126,7 @@ install(PROGRAMS
   src/examples/offboard_py/gp_estimator.py
   src/examples/offboard_py/drone_model.py
   src/examples/offboard_py/path_plotter.py
+  src/examples/offboard_py/gp_estimator_torch.py
   DESTINATION lib/${PROJECT_NAME}
 )
 
