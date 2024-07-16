@@ -63,7 +63,7 @@ static const casadi_int casadi_s4[5] = {1, 1, 0, 1, 0};
 /* drone_ode_cost_ext_cost_fun:(i0[17],i1[4],i2[],i3[27])->(o0) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_real a0, a1, a10, a11, a12, a2, a3, a4, a5, a6, a7, a8, a9;
-  a0=200.;
+  a0=180.;
   a1=arg[0]? arg[0][0] : 0;
   a2=arg[3]? arg[3][14] : 0;
   a3=(a1-a2);
@@ -77,7 +77,7 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   a1=(a1-a2);
   a0=(a0*a1);
   a3=(a3+a0);
-  a0=1000.;
+  a0=900.;
   a1=arg[0]? arg[0][2] : 0;
   a2=arg[3]? arg[3][16] : 0;
   a4=(a1-a2);
@@ -85,7 +85,7 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   a1=(a1-a2);
   a0=(a0*a1);
   a3=(a3+a0);
-  a0=100.;
+  a0=190.;
   a1=arg[3]? arg[3][17] : 0;
   a2=casadi_sq(a1);
   a4=arg[3]? arg[3][18] : 0;
@@ -133,18 +133,23 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   a1=(a1+a10);
   a0=(a0*a1);
   a3=(a3+a0);
-  a0=arg[1]? arg[1][0] : 0;
-  a0=casadi_sq(a0);
+  a0=1.2000000000000000e+00;
+  a1=arg[1]? arg[1][0] : 0;
+  a10=(a0*a1);
+  a10=(a10*a1);
   a1=arg[1]? arg[1][1] : 0;
-  a1=casadi_sq(a1);
-  a0=(a0+a1);
-  a1=arg[1]? arg[1][2] : 0;
-  a1=casadi_sq(a1);
-  a0=(a0+a1);
+  a12=(a0*a1);
+  a12=(a12*a1);
+  a10=(a10+a12);
+  a12=arg[1]? arg[1][2] : 0;
+  a1=(a0*a12);
+  a1=(a1*a12);
+  a10=(a10+a1);
   a1=arg[1]? arg[1][3] : 0;
-  a1=casadi_sq(a1);
-  a0=(a0+a1);
-  a3=(a3+a0);
+  a0=(a0*a1);
+  a0=(a0*a1);
+  a10=(a10+a0);
+  a3=(a3+a10);
   if (res[0]!=0) res[0][0]=a3;
   return 0;
 }

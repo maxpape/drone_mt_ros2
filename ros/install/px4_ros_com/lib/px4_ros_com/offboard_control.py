@@ -262,7 +262,7 @@ class OffboardControl(Node):
         self.nx = 17
         self.nu = 4
         self.Tmax = 10
-        self.Tmin = 1
+        self.Tmin = 0.5
         self.vmax = 3
         self.angular_vmax = 1.5
         self.max_angle_q = 1
@@ -272,9 +272,9 @@ class OffboardControl(Node):
         self.m = 0.726
         
         self.g = -9.81
-        self.jxx = 0.02
-        self.jyy = 0.02
-        self.jzz = 0.04
+        self.jxx = 0.0231
+        self.jyy = 0.0206
+        self.jzz = 0.0328
        
         
         self.d_x0 = 0.094
@@ -429,6 +429,7 @@ class OffboardControl(Node):
             self.mpc_prediction_history_ang.append(np.zeros((self.gp_prediction_horizon-1, 10)))
         
         #setpoint variables
+        self.is_initial_setpoint = True
         self.position_setpoint = np.array([0,0,1.5])
         self.velocity_setpoint = np.zeros(3)
         self.attitude_setpoint = np.asarray([np.sqrt(2)/2, 0, 0, -np.sqrt(2)/2])
@@ -439,7 +440,7 @@ class OffboardControl(Node):
         self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint), axis=None)
         self.setpoints = []
         self.trajectory = []
-        self.update_setpoint()
+        #self.update_setpoint()
         
 
         
@@ -610,8 +611,11 @@ class OffboardControl(Node):
         if "yaw" in fields:
             self.yaw_setpoint = yaw
             self.attitude_setpoint = functions.euler_to_quaternion_numpy(np.array([self.roll_setpoint, self.pitch_setpoint, self.yaw_setpoint]))
-        
-        self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint), axis=None)
+        if self.is_initial_setpoint:
+            self.setpoint = np.concatenate((self.current_state[0:3]+np.array([0,0,1.5]), self.current_state[3:7]), axis=None)
+            self.is_initial_setpoint = False
+        else:
+            self.setpoint = np.concatenate((self.position_setpoint, self.attitude_setpoint), axis=None)
         self.setpoints.append(self.setpoint)
         
     
@@ -988,14 +992,14 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([40,40,200])*5
-        Q_q= np.eye(1)*100
+        Q_p= np.diag([40,40,200])*4.5
+        Q_q= np.eye(1)*190
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
-        R_U = np.eye(4)
+        R_U = np.eye(4)*1.2
         
-        Q_p_final = np.diag([28,28,200])*30
-        Q_q_final = np.eye(1)*100
+        Q_p_final = np.diag([28,28,200])*25
+        Q_q_final = np.eye(1)*90
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
@@ -1081,7 +1085,8 @@ class OffboardControl(Node):
         self.velocity = functions.NED_to_ENU(vehicle_odometry.velocity)
         self.attitude = functions.NED_to_ENU(vehicle_odometry.q)
         self.angular_velocity = functions.NED_to_ENU(vehicle_odometry.angular_velocity)
-        
+        if self.is_initial_setpoint:
+            self.update_setpoint()
         
         
               
@@ -1102,10 +1107,10 @@ class OffboardControl(Node):
         thrust = np.zeros(4)
         
         
-        thrust[0] = self.inverse_map_thrust(m0)
-        thrust[1] = self.inverse_map_thrust(m1)
-        thrust[2] = self.inverse_map_thrust(m2)
-        thrust[3] = self.inverse_map_thrust(m3)
+        thrust[0] = self.inverse_map_thrust(m1)
+        thrust[1] = self.inverse_map_thrust(m2)
+        thrust[2] = self.inverse_map_thrust(m3)
+        thrust[3] = self.inverse_map_thrust(m0)
         
         
         self.thrust = thrust
@@ -1121,14 +1126,10 @@ class OffboardControl(Node):
         Returns:
             float: mapped motor input
         """
-        output = (372.7249*input_value**0.6885846)/self.max_motor_rpm
+        output = (372.7249*input_value**0.6885846)
+        output = 0.00000008398*(output**2)+0.000352*output-0.03924
         
-        if output > 1:
-            return 1
-        elif output < 0:
-            return 0
-        else:
-            return output
+        return np.clip(output, 0, 1)
     
     def inverse_map_thrust(self, input_value):
         """Inverse map thrust. Calculate current state of force from motor for MPC. Convert from [%] throttle readout from motors to force.
@@ -1140,11 +1141,11 @@ class OffboardControl(Node):
             float: current force of motor
         """
         try:
+            input_value = np.clip(input_value, 109, 1999)
+            input_value = 0.00000008398*(input_value**2)+0.000352*input_value-0.03924
             x = (input_value / 372.7249) ** (1 / 0.6885846)
             
-            if 10 < x:
-                return 10
-            return x
+            return np.clip(x, self.Tmin, self.Tmax)
         except ValueError:
             print("Error: The input value of y must be non-negative.")
             return None   
@@ -1411,7 +1412,9 @@ class OffboardControl(Node):
                 self.set_mpc_target_pos()
                 # solve OCP and publish motor command
                 U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
+                print('requested force : {}'.format(U))
                 command = np.asarray([self.map_thrust(u) for u in U])
+                print('motor_command: {}'.format(command))
                 self.publish_motor_command(command)
                 
                 U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
@@ -1641,7 +1644,7 @@ class OffboardControl(Node):
                 
                 stop = time.time()
                 #if (stop-start)*1000 >= 50:
-                print('execution took too long: {:.2f} ms'.format((stop-start)*1000))  
+                #print('execution took too long: {:.2f} ms'.format((stop-start)*1000))  
                 
                 
                 
@@ -1663,9 +1666,7 @@ class OffboardControl(Node):
                 #print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
 
 
-        elif self.offboard_setpoint_counter == 10:
-            self.engage_offboard_mode()
-            self.arm() 
+        
 
         if self.offboard_setpoint_counter < 200:
             self.offboard_setpoint_counter += 1

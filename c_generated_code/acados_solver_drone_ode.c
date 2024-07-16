@@ -391,20 +391,20 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     const int N = capsule->nlp_solver_plan->N;
     // initialize parameters to nominal value
     double* p = calloc(NP, sizeof(double));
-    p[0] = 1.5;
+    p[0] = 0.726;
     p[1] = -9.81;
-    p[2] = 0.029125;
-    p[3] = 0.029125;
-    p[4] = 0.055225;
-    p[5] = 0.107;
-    p[6] = 0.107;
-    p[7] = 0.107;
-    p[8] = 0.107;
-    p[9] = 0.0935;
-    p[10] = 0.0935;
-    p[11] = 0.0935;
-    p[12] = 0.0935;
-    p[13] = 0.000806428;
+    p[2] = 0.02;
+    p[3] = 0.02;
+    p[4] = 0.04;
+    p[5] = 0.094;
+    p[6] = 0.094;
+    p[7] = 0.094;
+    p[8] = 0.094;
+    p[9] = 0.072;
+    p[10] = 0.072;
+    p[11] = 0.072;
+    p[12] = 0.072;
+    p[13] = 0.0007;
     p[16] = 1.5;
     p[17] = 0.7071067811865476;
     p[20] = -0.7071067811865476;
@@ -513,14 +513,14 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     ubx0[3] = 0.7071067811865476;
     lbx0[6] = -0.7071067811865476;
     ubx0[6] = -0.7071067811865476;
-    lbx0[13] = 3.67875;
-    ubx0[13] = 3.67875;
-    lbx0[14] = 3.67875;
-    ubx0[14] = 3.67875;
-    lbx0[15] = 3.67875;
-    ubx0[15] = 3.67875;
-    lbx0[16] = 3.67875;
-    ubx0[16] = 3.67875;
+    lbx0[13] = 1.780515;
+    ubx0[13] = 1.780515;
+    lbx0[14] = 1.780515;
+    ubx0[14] = 1.780515;
+    lbx0[15] = 1.780515;
+    ubx0[15] = 1.780515;
+    lbx0[16] = 1.780515;
+    ubx0[16] = 1.780515;
 
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "idxbx", idxbx0);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "lbx", lbx0);
@@ -772,10 +772,10 @@ void drone_ode_acados_create_7_set_nlp_out(drone_ode_solver_capsule* capsule)
     
     x0[3] = 0.7071067811865476;
     x0[6] = -0.7071067811865476;
-    x0[13] = 3.67875;
-    x0[14] = 3.67875;
-    x0[15] = 3.67875;
-    x0[16] = 3.67875;
+    x0[13] = 1.780515;
+    x0[14] = 1.780515;
+    x0[15] = 1.780515;
+    x0[16] = 1.780515;
 
 
     double* u0 = xu0 + NX;
