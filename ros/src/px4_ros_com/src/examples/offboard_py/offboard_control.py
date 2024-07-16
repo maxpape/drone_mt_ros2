@@ -484,6 +484,12 @@ class OffboardControl(Node):
         )
         
         
+        self.motor_speed_0 = 0
+        self.motor_speed_1 = 0
+        self.motor_speed_2 = 0
+        self.motor_speed_3 = 0
+        
+        
         # Declare a parameter with a descriptor for dynamic reconfiguration
         position_descriptor = ParameterDescriptor(
             type=ParameterType.PARAMETER_DOUBLE,  # Specify the type as double
@@ -766,6 +772,14 @@ class OffboardControl(Node):
                 self.scale_ang[:] = param.value
             elif param.name == "noise_variance_ang":
                 self.noise_variance_ang = param.value
+            elif param.name == "motor_speed_0":
+                self.motor_speed_0 = param.value
+            elif param.name == "motor_speed_1":
+                self.motor_speed_1 = param.value
+            elif param.name == "motor_speed_2":
+                self.motor_speed_2 = param.value
+            elif param.name == "motor_speed_3":
+                self.motor_speed_3 = param.value
             elif param.name == "use_gp":
                 self.use_gp = param.value
             elif param.name == "use_ard":
@@ -1297,6 +1311,12 @@ class OffboardControl(Node):
         msg.control[2] = control[2]  # Motor 3
         msg.control[3] = control[3]  # Motor 4
         
+        
+        #msg.control[0] = self.motor_speed_0  # Motor 1
+        #msg.control[1] = self.motor_speed_1  # Motor 2
+        #msg.control[2] = self.motor_speed_2  # Motor 3
+        #msg.control[3] = self.motor_speed_3  # Motor 4
+        
         self.motor_command_publisher.publish(msg)
         
         
@@ -1418,8 +1438,9 @@ class OffboardControl(Node):
                 # set parameters and trajectory     
                 self.set_mpc_target_pos()
                 # solve OCP and publish motor command
-                U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
-                command = np.asarray([self.map_thrust(u) for u in U])
+                #U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
+                #command = np.asarray([self.map_thrust(u) for u in U])
+                command = np.zeros(4)
                 self.publish_motor_command(command)
                 
                 U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
@@ -1550,18 +1571,18 @@ class OffboardControl(Node):
                 # prepare prediction args for multiprocessing
                 
                 
-                prediction_args = [(np.asarray(hist_sim_lin_x), np.asarray(error_lin_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)]), 0),
-                                    (np.asarray(hist_sim_lin_y), np.asarray(error_lin_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)]), 1),
-                                    (np.asarray(hist_sim_lin_z), np.asarray(error_lin_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)]), 2),
-                                    (np.asarray(hist_sim_ang_x), np.asarray(error_ang_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)]), 3),
-                                    (np.asarray(hist_sim_ang_y), np.asarray(error_ang_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)]), 4),
-                                    (np.asarray(hist_sim_ang_z), np.asarray(error_ang_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)]), 5)]
-                                   
-                f = lambda x: GP.predict_accel(*x)
-                
-               
-                with Pool(processes=4) as pool:
-                    result = pool.map(f, prediction_args)
+                #prediction_args = [(np.asarray(hist_sim_lin_x), np.asarray(error_lin_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)]), 0),
+                #                    (np.asarray(hist_sim_lin_y), np.asarray(error_lin_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)]), 1),
+                #                    (np.asarray(hist_sim_lin_z), np.asarray(error_lin_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)]), 2),
+                #                    (np.asarray(hist_sim_ang_x), np.asarray(error_ang_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)]), 3),
+                #                    (np.asarray(hist_sim_ang_y), np.asarray(error_ang_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)]), 4),
+                #                    (np.asarray(hist_sim_ang_z), np.asarray(error_ang_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)]), 5)]
+                #                   
+                #f = lambda x: GP.predict_accel(*x)
+                #
+               #
+                #with Pool(processes=4) as pool:
+                #    result = pool.map(f, prediction_args)
                 
                 
             
@@ -1577,19 +1598,19 @@ class OffboardControl(Node):
                 
                 
                 
-                #gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
-                #gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
-                #gp_prediction_lin_z = np.zeros((self.gp_prediction_horizon, 1))
-                #gp_prediction_ang_x = np.zeros((self.gp_prediction_horizon, 1))
-                #gp_prediction_ang_y = np.zeros((self.gp_prediction_horizon, 1))
-                #gp_prediction_ang_z = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_lin_x, gp_prediction_lin_x_var = result[0]
-                gp_prediction_lin_y, gp_prediction_lin_y_var = result[1]
-                gp_prediction_lin_z, gp_prediction_lin_z_var = result[2]
-                gp_prediction_ang_x, gp_prediction_ang_x_var = result[3]
-                gp_prediction_ang_y, gp_prediction_ang_y_var = result[4]
-                gp_prediction_ang_z, gp_prediction_ang_z_var = result[5]
-                
+                gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
+                gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
+                gp_prediction_lin_z = np.zeros((self.gp_prediction_horizon, 1))
+                gp_prediction_ang_x = np.zeros((self.gp_prediction_horizon, 1))
+                gp_prediction_ang_y = np.zeros((self.gp_prediction_horizon, 1))
+                gp_prediction_ang_z = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_lin_x, gp_prediction_lin_x_var = result[0]
+                #gp_prediction_lin_y, gp_prediction_lin_y_var = result[1]
+                #gp_prediction_lin_z, gp_prediction_lin_z_var = result[2]
+                #gp_prediction_ang_x, gp_prediction_ang_x_var = result[3]
+                #gp_prediction_ang_y, gp_prediction_ang_y_var = result[4]
+                #gp_prediction_ang_z, gp_prediction_ang_z_var = result[5]
+                #
                 
                 
                 # sace prediction results GP torch
