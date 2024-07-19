@@ -1438,9 +1438,9 @@ class OffboardControl(Node):
                 # set parameters and trajectory     
                 self.set_mpc_target_pos()
                 # solve OCP and publish motor command
-                #U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
-                #command = np.asarray([self.map_thrust(u) for u in U])
-                command = np.zeros(4)
+                U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
+                command = np.asarray([self.map_thrust(u) for u in U])
+                #command = np.zeros(4)
                 self.publish_motor_command(command)
                 
                 U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
@@ -1567,7 +1567,7 @@ class OffboardControl(Node):
                 error_ang_z = hist_real_ang_z - hist_sim_ang_z
                
                 
-                start = time.time()
+                
                 # prepare prediction args for multiprocessing
                 
                 
@@ -1583,27 +1583,29 @@ class OffboardControl(Node):
                #
                 #with Pool(processes=4) as pool:
                 #    result = pool.map(f, prediction_args)
+                #
                 
                 
             
                 ## predict all errors
-                #gp_prediction_lin_x, gp_prediction_lin_x_var = GP.predict_accel(hist_sim_lin_x, error_lin_x[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)], axis=0)
-                #gp_prediction_lin_y, gp_prediction_lin_y_var = GP.predict_accel(hist_sim_lin_y, error_lin_y[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)], axis=1)
-                #gp_prediction_lin_z, gp_prediction_lin_z_var = GP.predict_accel(hist_sim_lin_z, error_lin_z[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)], axis=2) 
-                #gp_prediction_ang_x, gp_prediction_ang_x_var = GP.predict_accel(hist_sim_ang_x, error_ang_x[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)], axis=3)
-                #gp_prediction_ang_y, gp_prediction_ang_y_var = GP.predict_accel(hist_sim_ang_y, error_ang_y[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)], axis=4)
-                #gp_prediction_ang_z, gp_prediction_ang_z_var = GP.predict_accel(hist_sim_ang_z, error_ang_z[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)], axis=5)
+                gp_prediction_lin_x, gp_prediction_lin_x_var = GP.predict_accel(hist_sim_lin_x, error_lin_x[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)], axis=0)
+                gp_prediction_lin_y, gp_prediction_lin_y_var = GP.predict_accel(hist_sim_lin_y, error_lin_y[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)], axis=1)
+                gp_prediction_lin_z, gp_prediction_lin_z_var = GP.predict_accel(hist_sim_lin_z, error_lin_z[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)], axis=2) 
+                gp_prediction_ang_x, gp_prediction_ang_x_var = GP.predict_accel(hist_sim_ang_x, error_ang_x[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)], axis=3)
+                gp_prediction_ang_y, gp_prediction_ang_y_var = GP.predict_accel(hist_sim_ang_y, error_ang_y[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)], axis=4)
+                gp_prediction_ang_z, gp_prediction_ang_z_var = GP.predict_accel(hist_sim_ang_z, error_ang_z[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)], axis=5)
 
                 
                 
                 
                 
-                gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_lin_z = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_ang_x = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_ang_y = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_ang_z = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_lin_z = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_ang_x = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_ang_y = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_ang_z = np.zeros((self.gp_prediction_horizon, 1))
+                
                 #gp_prediction_lin_x, gp_prediction_lin_x_var = result[0]
                 #gp_prediction_lin_y, gp_prediction_lin_y_var = result[1]
                 #gp_prediction_lin_z, gp_prediction_lin_z_var = result[2]
@@ -1614,22 +1616,22 @@ class OffboardControl(Node):
                 
                 
                 # sace prediction results GP torch
-                lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1].reshape(-1,1), gp_prediction_lin_y[:-1].reshape(-1,1), gp_prediction_lin_z[:-1].reshape(-1,1)))
-                self.lin_acc_offset = lin_acc_offset.clip(min=-10, max=10)
-                self.gp_prediction_history_lin.append(lin_acc_offset)
-                
-                ang_acc_offset = np.hstack((gp_prediction_ang_x[:-1].reshape(-1,1), gp_prediction_ang_y[:-1].reshape(-1,1), gp_prediction_ang_z[:-1].reshape(-1,1)))
-                self.ang_acc_offset = ang_acc_offset.clip(min=-10, max=10)
-                self.gp_prediction_history_ang.append(ang_acc_offset)
-                
-                ## sace prediction results GP
-                #lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1,0].reshape(-1,1), gp_prediction_lin_y[:-1,0].reshape(-1,1), gp_prediction_lin_z[:-1,0].reshape(-1,1)))
+                #lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1].reshape(-1,1), gp_prediction_lin_y[:-1].reshape(-1,1), gp_prediction_lin_z[:-1].reshape(-1,1)))
                 #self.lin_acc_offset = lin_acc_offset.clip(min=-10, max=10)
                 #self.gp_prediction_history_lin.append(lin_acc_offset)
                 #
-                #ang_acc_offset = np.hstack((gp_prediction_ang_x[:-1,0].reshape(-1,1), gp_prediction_ang_y[:-1,0].reshape(-1,1), gp_prediction_ang_z[:-1,0].reshape(-1,1)))
+                #ang_acc_offset = np.hstack((gp_prediction_ang_x[:-1].reshape(-1,1), gp_prediction_ang_y[:-1].reshape(-1,1), gp_prediction_ang_z[:-1].reshape(-1,1)))
                 #self.ang_acc_offset = ang_acc_offset.clip(min=-10, max=10)
                 #self.gp_prediction_history_ang.append(ang_acc_offset)
+                
+                ## sace prediction results GP
+                lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1,0].reshape(-1,1), gp_prediction_lin_y[:-1,0].reshape(-1,1), gp_prediction_lin_z[:-1,0].reshape(-1,1)))
+                self.lin_acc_offset = lin_acc_offset.clip(min=-10, max=10)
+                self.gp_prediction_history_lin.append(lin_acc_offset)
+                
+                ang_acc_offset = np.hstack((gp_prediction_ang_x[:-1,0].reshape(-1,1), gp_prediction_ang_y[:-1,0].reshape(-1,1), gp_prediction_ang_z[:-1,0].reshape(-1,1)))
+                self.ang_acc_offset = ang_acc_offset.clip(min=-10, max=10)
+                self.gp_prediction_history_ang.append(ang_acc_offset)
                 
                 
                 
@@ -1673,8 +1675,8 @@ class OffboardControl(Node):
                 
                 
                 stop = time.time()
-                #if (stop-start)*1000 >= 50:
-                print('execution took too long: {:.2f} ms'.format((stop-start)*1000))  
+                if (stop-start)*1000 >= 50:
+                    print('execution took too long: {:.2f} ms'.format((stop-start)*1000))  
                 
                 
                 

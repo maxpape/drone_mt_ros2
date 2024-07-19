@@ -97,7 +97,7 @@ class GP_estimator():
         
         
         if self.online_regression :
-            self.models[axis].optimize(max_iters=1)
+            self.models[axis].optimize(max_iters=1, optimizer='tnc')
             
             
             
@@ -106,10 +106,10 @@ class GP_estimator():
         
         self.scale_hypers[axis] = self.models[axis].rbf.variance[0]
         
-        #if axis == 0 and self.show_lin:
-        #    print(self.length_hypers_lin[axis])
-        #    print(self.scale_hypers_lin[axis])
-        #    print('-------------')
+        if axis == 0 and self.show_lin:
+            print(self.length_hypers[axis])
+            print(self.scale_hypers[axis])
+            print('-------------')
         mean, var = self.models[axis].predict(new_x)
         
         
