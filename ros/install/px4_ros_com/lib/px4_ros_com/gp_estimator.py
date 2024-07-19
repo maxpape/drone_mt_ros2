@@ -84,7 +84,7 @@ class GP_estimator():
         self.online_regression = False
         self.show_lin = True
         
-    def predict_accel(self, x, y, new_x, axis, dim=6):
+    def predict_accel(self, x, y, new_x, axis, optimize, dim=6):
         
         
             
@@ -96,20 +96,20 @@ class GP_estimator():
         self.models[axis].Gaussian_noise.variance = self.noise_variance_lin
         
         
-        if self.online_regression :
-            self.models[axis].optimize(max_iters=1, optimizer='tnc')
+        if optimize :
+            self.models[axis].optimize(max_iters=1, optimizer='scg')
             
             
             
-        for i in range(dim):
-            self.length_hypers[axis][i] = self.models[axis].rbf.lengthscale[i]
+        #for i in range(dim):
+        #    self.length_hypers[axis][i] = self.models[axis].rbf.lengthscale[i]
         
-        self.scale_hypers[axis] = self.models[axis].rbf.variance[0]
+        #self.scale_hypers[axis] = self.models[axis].rbf.variance[0]
         
-        if axis == 0 and self.show_lin:
-            print(self.length_hypers[axis])
-            print(self.scale_hypers[axis])
-            print('-------------')
+        #if axis == 0 and self.show_lin:
+        #print(self.length_hypers)
+            #print(self.scale_hypers[axis])
+            #print('-------------')
         mean, var = self.models[axis].predict(new_x)
         
         
