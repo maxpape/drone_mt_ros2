@@ -182,7 +182,7 @@ int drone_ode_acados_sim_create(drone_ode_sim_solver_capsule * capsule)
     p[10] = 0.072;
     p[11] = 0.072;
     p[12] = 0.072;
-    p[13] = 0.0007;
+    p[13] = 0.0000007;
     p[16] = 1.5;
     p[17] = 0.7071067811865476;
     p[20] = -0.7071067811865476;

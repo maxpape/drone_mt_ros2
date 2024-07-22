@@ -100,7 +100,7 @@ def export_drone_ode_model() -> AcadosModel:
         functions.quat_derivative_casadi(q_WB, omega_B),
         functions.quat_rotation_casadi(vertcat(0, 0, sum1(thrust)), q_WB) / m + vertcat(0, 0, g) + lin_acc_offset,
         inv(J) @ ((P @ thrust - cross(omega_B, J @ omega_B))) + ang_acc_offset,
-        (thrust_set - thrust) * 125,
+        (thrust_set - thrust) * 40,
     )
 
     f_impl = xdot - f_expl

@@ -262,7 +262,7 @@ class OffboardControl(Node):
         self.nx = 17
         self.nu = 4
         self.Tmax = 10
-        self.Tmin = 0.5
+        self.Tmin = 0.1
         self.vmax = 3
         self.angular_vmax = 1.5
         self.max_angle_q = 1
@@ -285,7 +285,7 @@ class OffboardControl(Node):
         self.d_y1 = 0.072
         self.d_y2 = 0.072
         self.d_y3 = 0.072
-        self.c_tau = 0.0007
+        self.c_tau = 0.0000007
         self.hover_thrust = -self.g*self.m/4
         
         self.params = np.asarray([self.m,
@@ -992,14 +992,14 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([40,40,200])*4.5
-        Q_q= np.eye(1)*190
+        Q_p= np.diag([40,40,80])*2.5
+        Q_q= np.eye(1)*100
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
-        R_U = np.eye(4)*1.2
+        R_U = np.eye(4)*200
         
-        Q_p_final = np.diag([28,28,200])*25
-        Q_q_final = np.eye(1)*90
+        Q_p_final = np.diag([40,40,80])*10
+        Q_q_final = np.eye(1)*150
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
@@ -1111,7 +1111,7 @@ class OffboardControl(Node):
         thrust[1] = self.inverse_map_thrust(m2)
         thrust[2] = self.inverse_map_thrust(m3)
         thrust[3] = self.inverse_map_thrust(m0)
-        
+        #print('Motor feedback: {}'.format(thrust))
         
         self.thrust = thrust
         
@@ -1414,7 +1414,7 @@ class OffboardControl(Node):
                 U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
                 print('requested force : {}'.format(U))
                 command = np.asarray([self.map_thrust(u) for u in U])
-                print('motor_command: {}'.format(command))
+                
                 self.publish_motor_command(command)
                 
                 U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
