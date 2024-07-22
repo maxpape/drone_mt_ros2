@@ -137,7 +137,7 @@ def generate_figure_8_trajectory(center, radius, d_points, yaw):
     x = radius * np.cos(t+np.pi/2) 
     y = radius * np.sin(2 * t) / 2 
     #z = np.zeros_like(t)  # Constant height
-    z = 0.5 * np.cos(t+np.pi/2)
+    z = 1 * np.cos(t+np.pi/2)
     
     # Combine into a single array
     points = np.vstack((x+x_center, y+y_center, z+ z_center)).T
@@ -1615,14 +1615,7 @@ class OffboardControl(Node):
                 #
                 
                 
-                # sace prediction results GP torch
-                #lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1].reshape(-1,1), gp_prediction_lin_y[:-1].reshape(-1,1), gp_prediction_lin_z[:-1].reshape(-1,1)))
-                #self.lin_acc_offset = lin_acc_offset.clip(min=-10, max=10)
-                #self.gp_prediction_history_lin.append(lin_acc_offset)
-                #
-                #ang_acc_offset = np.hstack((gp_prediction_ang_x[:-1].reshape(-1,1), gp_prediction_ang_y[:-1].reshape(-1,1), gp_prediction_ang_z[:-1].reshape(-1,1)))
-                #self.ang_acc_offset = ang_acc_offset.clip(min=-10, max=10)
-                #self.gp_prediction_history_ang.append(ang_acc_offset)
+                
                 
                 ## sace prediction results GP
                 lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1,0].reshape(-1,1), gp_prediction_lin_y[:-1,0].reshape(-1,1), gp_prediction_lin_z[:-1,0].reshape(-1,1)))

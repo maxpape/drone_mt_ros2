@@ -133,8 +133,8 @@ class PathPlotter(Node):
             
             diff = np.linalg.norm(diff_vector, axis=0)
             
-            print('Average deviation of {:.4f} m over last {} samples'.format(np.mean(diff), diff.shape[0]))
-                
+            #print('Average deviation of {:.4f} m over last {} samples. diff x: {}, diff y: {}, diff z: {}'.format(np.mean(diff), diff.shape[0], np.mean(np.abs(diff_vector[0])), np.mean(np.abs(diff_vector[1])), np.mean(np.abs(diff_vector[2]))))
+            print('{:.4f},{:.4f},{:.4f},{:.4f}'.format(np.mean(diff), np.mean(np.abs(diff_vector[0])), np.mean(np.abs(diff_vector[1])), np.mean(np.abs(diff_vector[2]))))    
             
             
             self.x_coords_ref.clear()

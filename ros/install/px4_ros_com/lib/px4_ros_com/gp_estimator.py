@@ -43,8 +43,7 @@ class GP_estimator():
         
         self.length_hypers = [[1,5,7,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7]]
         self.scale_hypers = [1, 1, 1, 1, 1, 1]
-        #self.length_hypers_ang = [[1,5,7,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7]]
-        #self.scale_hypers_ang = [1, 1, 1]
+        
         
         
         kerns = [GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[0], lengthscale=self.length_hypers[0], active_dims=[0,1,2,3,4,5], ARD=True),

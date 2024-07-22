@@ -137,7 +137,7 @@ def generate_figure_8_trajectory(center, radius, d_points, yaw):
     x = radius * np.cos(t+np.pi/2) 
     y = radius * np.sin(2 * t) / 2 
     #z = np.zeros_like(t)  # Constant height
-    z = 0.5 * np.cos(t+np.pi/2)
+    z = 1 * np.cos(t+np.pi/2)
     
     # Combine into a single array
     points = np.vstack((x+x_center, y+y_center, z+ z_center)).T
