@@ -139,7 +139,7 @@ class PathPlotter(Node):
             mean_z  = np.round(np.mean(np.abs(diff_vector[2])), decimals=4)
             
             #print('Average deviation of {:.4f} m over last {} samples. diff x: {}, diff y: {}, diff z: {}'.format(np.mean(diff), diff.shape[0], np.mean(np.abs(diff_vector[0])), np.mean(np.abs(diff_vector[1])), np.mean(np.abs(diff_vector[2]))))
-            print('{:.4f},{:.4f},{:.4f},{:.4f}'.format(mean_eu, mean_x, mean_y, mean_z) )  
+            print('{},{},{},{}'.format(mean_eu, mean_x, mean_y, mean_z) )  
             
             
             self.x_coords_ref.clear()
