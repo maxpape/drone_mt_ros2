@@ -83,7 +83,7 @@ class GP_estimator():
         self.online_regression = False
         self.show_lin = True
         
-    def predict_accel(self, x, y, new_x, axis, optimize, dim=6):
+    def predict_accel(self, x, y, new_x, axis, optimize, counter):
         
         
             
@@ -95,7 +95,7 @@ class GP_estimator():
         self.models[axis].Gaussian_noise.variance = self.noise_variance_lin
         
         
-        if optimize :
+        if optimize and (counter == axis):
             self.models[axis].optimize(max_iters=1, optimizer='scg')
             
             

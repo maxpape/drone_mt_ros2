@@ -1571,29 +1571,29 @@ class OffboardControl(Node):
                 # prepare prediction args for multiprocessing
                 
                 
-                prediction_args =  [(np.asarray(hist_sim_lin_x), np.asarray(error_lin_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)]), 0, self.online_regression),
-                                    (np.asarray(hist_sim_lin_y), np.asarray(error_lin_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)]), 1, self.online_regression),
-                                    (np.asarray(hist_sim_lin_z), np.asarray(error_lin_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)]), 2, self.online_regression),
-                                    (np.asarray(hist_sim_ang_x), np.asarray(error_ang_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)]), 3, self.online_regression),
-                                    (np.asarray(hist_sim_ang_y), np.asarray(error_ang_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)]), 4, self.online_regression),
-                                    (np.asarray(hist_sim_ang_z), np.asarray(error_ang_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)]), 5, self.online_regression)]
-                                   
-                f = lambda x: GP.predict_accel(*x)
-                
-               
-                with Pool(processes=4) as pool:
-                    result = pool.map(f, prediction_args)
+                #prediction_args =  [(np.asarray(hist_sim_lin_x), np.asarray(error_lin_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)]), 0, self.online_regression),
+                #                    (np.asarray(hist_sim_lin_y), np.asarray(error_lin_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)]), 1, self.online_regression),
+                #                    (np.asarray(hist_sim_lin_z), np.asarray(error_lin_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)]), 2, self.online_regression),
+                #                    (np.asarray(hist_sim_ang_x), np.asarray(error_ang_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)]), 3, self.online_regression),
+                #                    (np.asarray(hist_sim_ang_y), np.asarray(error_ang_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)]), 4, self.online_regression),
+                #                    (np.asarray(hist_sim_ang_z), np.asarray(error_ang_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)]), 5, self.online_regression)]
+                #                   
+                #f = lambda x: GP.predict_accel(*x)
+                #
+               #
+                #with Pool(processes=4) as pool:
+                #    result = pool.map(f, prediction_args)
                 
                 
                 
             
                 ## predict all errors
-                #gp_prediction_lin_x, gp_prediction_lin_x_var = GP.predict_accel(hist_sim_lin_x, error_lin_x[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)], 0, self.online_regression)
-                #gp_prediction_lin_y, gp_prediction_lin_y_var = GP.predict_accel(hist_sim_lin_y, error_lin_y[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)], 1, self.online_regression)
-                #gp_prediction_lin_z, gp_prediction_lin_z_var = GP.predict_accel(hist_sim_lin_z, error_lin_z[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)], 2, self.online_regression) 
-                #gp_prediction_ang_x, gp_prediction_ang_x_var = GP.predict_accel(hist_sim_ang_x, error_ang_x[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)], 3, self.online_regression)
-                #gp_prediction_ang_y, gp_prediction_ang_y_var = GP.predict_accel(hist_sim_ang_y, error_ang_y[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)], 4, self.online_regression)
-                #gp_prediction_ang_z, gp_prediction_ang_z_var = GP.predict_accel(hist_sim_ang_z, error_ang_z[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)], 5, self.online_regression)
+                gp_prediction_lin_x, gp_prediction_lin_x_var = GP.predict_accel(hist_sim_lin_x, error_lin_x[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)], 0, self.online_regression, self.counter)
+                gp_prediction_lin_y, gp_prediction_lin_y_var = GP.predict_accel(hist_sim_lin_y, error_lin_y[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)], 1, self.online_regression, self.counter)
+                gp_prediction_lin_z, gp_prediction_lin_z_var = GP.predict_accel(hist_sim_lin_z, error_lin_z[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)], 2, self.online_regression, self.counter) 
+                gp_prediction_ang_x, gp_prediction_ang_x_var = GP.predict_accel(hist_sim_ang_x, error_ang_x[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)], 3, self.online_regression, self.counter)
+                gp_prediction_ang_y, gp_prediction_ang_y_var = GP.predict_accel(hist_sim_ang_y, error_ang_y[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)], 4, self.online_regression, self.counter)
+                gp_prediction_ang_z, gp_prediction_ang_z_var = GP.predict_accel(hist_sim_ang_z, error_ang_z[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)], 5, self.online_regression, self.counter)
 
                 
                 
@@ -1606,12 +1606,12 @@ class OffboardControl(Node):
                 #gp_prediction_ang_y = np.zeros((self.gp_prediction_horizon, 1))
                 #gp_prediction_ang_z = np.zeros((self.gp_prediction_horizon, 1))
                 
-                gp_prediction_lin_x, gp_prediction_lin_x_var = result[0]
-                gp_prediction_lin_y, gp_prediction_lin_y_var = result[1]
-                gp_prediction_lin_z, gp_prediction_lin_z_var = result[2]
-                gp_prediction_ang_x, gp_prediction_ang_x_var = result[3]
-                gp_prediction_ang_y, gp_prediction_ang_y_var = result[4]
-                gp_prediction_ang_z, gp_prediction_ang_z_var = result[5]
+                #gp_prediction_lin_x, gp_prediction_lin_x_var = result[0]
+                #gp_prediction_lin_y, gp_prediction_lin_y_var = result[1]
+                #gp_prediction_lin_z, gp_prediction_lin_z_var = result[2]
+                #gp_prediction_ang_x, gp_prediction_ang_x_var = result[3]
+                #gp_prediction_ang_y, gp_prediction_ang_y_var = result[4]
+                #gp_prediction_ang_z, gp_prediction_ang_z_var = result[5]
                 #
                 
                 
