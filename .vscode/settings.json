@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "./ros/src/px4_ros_com/scripts",
+        "./acados/interfaces/acados_template"
+    ]
+}

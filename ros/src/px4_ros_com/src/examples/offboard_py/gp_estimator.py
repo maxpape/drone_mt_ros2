@@ -59,10 +59,10 @@ class GP_estimator():
         
         for i in range(6):
             for j in range(6):
-                if i >= 2:
-                    kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j], upper_lenght[j])
+                if i <= 2:
+                    kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j], upper_lenght[j], warning=False)
                 else:
-                    kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j+3], upper_lenght[j+3])
+                    kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j+3], upper_lenght[j+3], warning=False)
             #kerns[i].variance.constrain_bounded(1e-3, 5)
             kerns[i].variance.fix()
         
