@@ -264,10 +264,10 @@ class OffboardControl(Node):
         self.nx = 17
         self.nu = 4
         self.Tmax = 10
-        self.Tmin = 1
-        self.vmax = 3
-        self.angular_vmax = 1.5
-        self.max_angle_q = 1
+        self.Tmin = 0.5
+        self.vmax = 4
+        self.angular_vmax = 2
+        self.max_angle_q = 0.3
         self.max_motor_rpm = 1100
         
         # parameters for system model
@@ -356,7 +356,7 @@ class OffboardControl(Node):
         
 
         
-        self.gp_prediction_horizon = 12
+        self.gp_prediction_horizon = 14
         self.gp_multi_step_pred_history = 8
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
@@ -708,11 +708,13 @@ class OffboardControl(Node):
         
                 
         
+        #parameters = np.concatenate((self.params, trajectory[0], np.zeros(6)), axis=None)
+        #self.ocp_solver.set(0, "p", parameters) 
+        #self.ocp_solver_nominal.set(0, "p", parameters)  
+        
         parameters = np.concatenate((self.params, trajectory[0], np.zeros(6)), axis=None)
         self.ocp_solver.set(0, "p", parameters) 
-        self.ocp_solver_nominal.set(0, "p", parameters)  
-        
-        
+        self.ocp_solver_nominal.set(0, "p", parameters) 
         
         
         
@@ -766,12 +768,14 @@ class OffboardControl(Node):
                 self.scale_lin[:] = param.value
             elif param.name == "noise_variance_lin":
                 self.noise_variance_lin = param.value
+                GP.noise_variance_lin = param.value
             elif param.name == "lengthscale_ang":
                 self.lengthscale_ang[:] = param.value
             elif param.name == "scale_ang":
                 self.scale_ang[:] = param.value
             elif param.name == "noise_variance_ang":
                 self.noise_variance_ang = param.value
+                GP.noise_variance_ang = param.value
             elif param.name == "motor_speed_0":
                 self.motor_speed_0 = param.value
             elif param.name == "motor_speed_1":
@@ -1009,13 +1013,13 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([40,40,200])*5
+        Q_p= np.diag([100,100,200])*15
         Q_q= np.eye(1)*100
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
         R_U = np.eye(4)
         
-        Q_p_final = np.diag([28,28,200])*30
+        Q_p_final = np.diag([100,100,200])*10
         Q_q_final = np.eye(1)*100
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
@@ -1612,18 +1616,19 @@ class OffboardControl(Node):
                 gp_prediction_ang_x, gp_prediction_ang_x_var = result[3]
                 gp_prediction_ang_y, gp_prediction_ang_y_var = result[4]
                 gp_prediction_ang_z, gp_prediction_ang_z_var = result[5]
-                #
+                
+                
                 
                 
                 
                 
                 ## sace prediction results GP
                 lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1,0].reshape(-1,1), gp_prediction_lin_y[:-1,0].reshape(-1,1), gp_prediction_lin_z[:-1,0].reshape(-1,1)))
-                self.lin_acc_offset = lin_acc_offset.clip(min=-10, max=10)
+                self.lin_acc_offset = lin_acc_offset.clip(min=-15, max=15)
                 self.gp_prediction_history_lin.append(lin_acc_offset)
                 
                 ang_acc_offset = np.hstack((gp_prediction_ang_x[:-1,0].reshape(-1,1), gp_prediction_ang_y[:-1,0].reshape(-1,1), gp_prediction_ang_z[:-1,0].reshape(-1,1)))
-                self.ang_acc_offset = ang_acc_offset.clip(min=-10, max=10)
+                self.ang_acc_offset = ang_acc_offset.clip(min=-15, max=15)
                 self.gp_prediction_history_ang.append(ang_acc_offset)
                 
                 
@@ -1668,8 +1673,8 @@ class OffboardControl(Node):
                 
                 
                 stop = time.time()
-                #if (stop-start)*1000 >= 50:
-                print('execution took too long: {:.2f} ms'.format((stop-start)*1000))  
+                if (stop-start)*1000 >= 50:
+                    print('execution took too long: {:.2f} ms'.format((stop-start)*1000))  
                 
                 
                 
