@@ -53,18 +53,18 @@ class GP_estimator():
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[3], lengthscale=self.length_hypers[3], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[4], lengthscale=self.length_hypers[4], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[5], lengthscale=self.length_hypers[5], active_dims=[0,1,2,3,4,5], ARD=True)]
-        lower_lenght = [0.1, 0.1, 4,4,4,4, 0.1, 0.1, 0.1,0.1,0.1,0.1]
-        upper_lenght = [10, 10, 20,20,20,20, 50,50,50,50,50,50]
+        lower_lenght = [1,1, 4,4,4,4, 1,1,4,4,4,4]
+        upper_lenght = [10, 10, 20,20,20,20, 20,20,50,50,50,50]
         #lower_lenght_ang = [0.1, 0.1, 0.1,0.1,0.1,0.1]
         #upper_lenght_ang = [50,50,50,50,50,50]
         
         for i in range(6):
             for j in range(6):
-                if i >= 2:
+                if i <= 2:
                     kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j], upper_lenght[j])
                 else:
-                    kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j+3], upper_lenght[j+3])
-            #kerns[i].variance.constrain_bounded(1e-3, 5)
+                    kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j+6], upper_lenght[j+6])
+            #kerns[i].variance.constrain_bounded(0.5, 5)
             kerns[i].variance.fix()
         
         
@@ -81,35 +81,41 @@ class GP_estimator():
             model.Gaussian_noise.variance = self.noise_variance_lin
             model.Gaussian_noise.variance.fix()
         
-        self.online_regression = False
+        self.optimize = False
         self.show_lin = True
         
-    def predict_accel(self, x, y, new_x, axis, dim=6):
+    def predict_accel(self, x, y, new_x, axis, counter, optimize, dim=6):
         
         
             
         self.models[axis].set_XY(x, y)
         
-        for i in range(dim):
-            self.models[axis].rbf.lengthscale[i] = self.length_hypers[axis][i] 
-        self.models[axis].rbf.variance[0] = self.scale_hypers[axis] 
-        self.models[axis].Gaussian_noise.variance = self.noise_variance_lin
+        #for i in range(dim):
+        #    self.models[axis].rbf.lengthscale[i] = self.length_hypers[axis][i] 
+        #self.models[axis].rbf.variance[0] = self.scale_hypers[axis] 
+        if axis <= 2 :
+            self.models[axis].Gaussian_noise.variance = self.noise_variance_lin
+        else:
+            self.models[axis].Gaussian_noise.variance = self.noise_variance_ang
         
         
-        if self.online_regression :
-            self.models[axis].optimize(max_iters=1)
+        if optimize and (counter == axis):
+            self.models[axis].optimize(max_iters=1, optimizer='scg')
             
             
             
-        for i in range(dim):
-            self.length_hypers[axis][i] = self.models[axis].rbf.lengthscale[i]
+        #for i in range(dim):
+         #   self.length_hypers[axis][i] = self.models[axis].rbf.lengthscale[i]
         
-        self.scale_hypers[axis] = self.models[axis].rbf.variance[0]
+        #self.scale_hypers[axis] = self.models[axis].rbf.variance[0]
         
-        #if axis == 0 and self.show_lin:
-        #    print(self.length_hypers_lin[axis])
-        #    print(self.scale_hypers_lin[axis])
-        #    print('-------------')
+        #if axis == 0 :
+         #   print(self.length_hypers[3])
+          #  print(self.length_hypers[5])
+           # print('------------------')
+        #print(self.models[2].rbf.lengthscale[0])
+            #print(self.scale_hypers[axis])
+            #print('-------------')
         mean, var = self.models[axis].predict(new_x)
         
         

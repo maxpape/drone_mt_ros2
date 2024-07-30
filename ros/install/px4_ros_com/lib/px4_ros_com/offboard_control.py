@@ -265,7 +265,7 @@ class OffboardControl(Node):
         self.Tmin = 0.1
         self.vmax = 3
         self.angular_vmax = 1.5
-        self.max_angle_q = 1
+        self.max_angle_q = 0.3
         self.max_motor_rpm = 2000
         
         # parameters for system model
@@ -344,13 +344,7 @@ class OffboardControl(Node):
         
         # GP model and parameters
         # gp parameters
-        self.lengthscale_lin = np.array([5,5,5])
-        self.scale_lin = np.array([0.02, 0.02, 0.02])
-        self.noise_variance_lin = 0.25
         
-        self.lengthscale_ang = np.array([5,5,5])
-        self.scale_ang = np.array([0.02, 0.02, 0.02])
-        self.noise_variance_ang = 0.55
         
 
         
@@ -367,51 +361,18 @@ class OffboardControl(Node):
         self.use_gp = False
         self.offset_applied = False
         self.use_ard = False
-        self.online_regression = False
+        self.optimize = False
         self.show_lin = True
         self.backsteps_plot = 0
         
-        self.length_hypers_lin = [[1,5,7,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7]]
-        self.scale_hypers_lin = [1, 1, 1]
-        self.length_hypers_ang = [[1,5,7,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7]]
-        self.scale_hypers_ang = [1, 1, 1]
-        
-        
-        kerns = [GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True)]
-        lower_lenght_lin = [0.1, 0.1, 4,4,4,4]
-        upper_lenght_lin = [10, 10, 20,20,20,20]
-        lower_lenght_ang = [0.1, 0.1, 0.1,0.1,0.1,0.1]
-        upper_lenght_ang = [50,50,50,50,50,50]
-        
-        for i in range(3):
-            for j in range(6):
-                kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght_lin[j], upper_lenght_lin[j])
-            #kerns[i].variance.constrain_bounded(1e-3, 5)
-            kerns[i].variance.fix()
-        for i in range(3,6):
-            for j in range(6):
-                kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght_ang[j], upper_lenght_ang[j])
-            #kerns[i].variance.constrain_bounded(1e-3, 5)
-            kerns[i].variance.fix()
         
         
         
-        self.models = [GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[0]),
-                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[1]),
-                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[2]),
-                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[3]),
-                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[4]),
-                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[5])]
         
-        for model in self.models:
-            model.Gaussian_noise.variance = self.noise_variance_lin
-            model.Gaussian_noise.variance.fix()
-            
+        
+        
+        
+        
         
         
         
@@ -755,12 +716,14 @@ class OffboardControl(Node):
                 self.scale_lin[:] = param.value
             elif param.name == "noise_variance_lin":
                 self.noise_variance_lin = param.value
+                GP.noise_variance_lin = param.value
             elif param.name == "lengthscale_ang":
                 self.lengthscale_ang[:] = param.value
             elif param.name == "scale_ang":
                 self.scale_ang[:] = param.value
             elif param.name == "noise_variance_ang":
                 self.noise_variance_ang = param.value
+                GP.noise_variance_ang = param.value
             elif param.name == "use_gp":
                 self.use_gp = param.value
             elif param.name == "use_ard":
@@ -768,7 +731,7 @@ class OffboardControl(Node):
             elif param.name == "motor_speed_0":
                 self.motor_speed_0 = param.value
             elif param.name == "online_regression":
-                self.online_regression = param.value
+                self.optimize = param.value
                 GP.online_regression = param.value
                 #self.lengthscale = np.array([2, 2, 2, 0.01, 0.01, 0.01])
                 #self.scale = np.array([1, 1, 1, 0.8, 0.8, 0.8])
@@ -796,186 +759,6 @@ class OffboardControl(Node):
         return SetParametersResult(successful=True)
 
 
-    def predict_accel_lin(self, x, y, new_x, axis, dim=2, active_dims=[0,1]):
-        
-        
-            
-        self.models[axis].set_XY(x, y)
-        
-        for i in range(dim):
-            self.models[axis].rbf.lengthscale[i] = self.length_hypers_lin[axis][i] 
-        self.models[axis].rbf.variance[0] = self.scale_hypers_lin[axis] 
-        self.models[axis].Gaussian_noise.variance = self.noise_variance_lin
-        
-        
-        if self.online_regression :
-            self.models[axis].optimize(max_iters=1)
-            
-            
-            
-        for i in range(dim):
-            self.length_hypers_lin[axis][i] = self.models[axis].rbf.lengthscale[i]
-        
-        self.scale_hypers_lin[axis] = self.models[axis].rbf.variance[0]
-        
-        if axis == 0 and self.show_lin:
-            print(self.length_hypers_lin[axis])
-            print(self.scale_hypers_lin[axis])
-            print('-------------')
-        mean, var = self.models[axis].predict(new_x)
-        
-        
-        
-            
-        return mean, var
-    
-    
-    def predict_accel_ang(self, x, y, new_x, axis, dim=2, active_dims=[0,1]):
-        
-        
-        self.models[axis+3].set_XY(x, y)
-        
-        for i in range(dim):
-            self.models[axis+3].rbf.lengthscale[i] = self.length_hypers_ang[axis][i] 
-        self.models[axis+3].rbf.variance[0] = self.scale_hypers_lin[axis] 
-        self.models[axis+3].Gaussian_noise.variance = self.noise_variance_ang
-        self.models[axis+3].Gaussian_noise.variance.fix()
-        
-        
-        if self.online_regression :
-            self.models[axis+3].optimize(max_iters=1)
-         
-            
-            
-            
-            
-        for i in range(dim):
-            self.length_hypers_ang[axis][i] = self.models[axis+3].rbf.lengthscale[i]
-        
-        self.scale_hypers_ang[axis] = self.models[axis].rbf.variance[0]
-        
-        if axis == 0 and (not self.show_lin):
-            print(self.length_hypers_ang[axis])
-            print(self.scale_hypers_ang[axis])
-            print('-------------')
-        mean, var = self.models[axis+3].predict(new_x)
-            
-            
-          
-            
-        
-        return mean, var
-
-
-    
-    def predict_next_y(self, x, y, new_x, type):
-        """
-        Predict the next y for a given x using GPy.
-
-        Parameters:
-        x (numpy array): Input data from the last 20 timesteps.
-        y (numpy array): Output data from the last 20 timesteps.
-        new_x (numpy array): New input for which to predict the output.
-
-        Returns:
-        numpy array: Predicted output for the new input.
-        """
-        
-        
-        if type == 0:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.scale_lin[0], lengthscale=self.lengthscale_lin[0], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(1, 7, warning=False)  # Set lengthscale bounds
-            gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = self.noise_variance_lin
-            gpmodel.Gaussian_noise.variance.fix()
-            
-        elif type == 1:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.scale_lin[1], lengthscale=self.lengthscale_lin[1], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(1, 7, warning=False)  # Set lengthscale bounds
-            gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = self.noise_variance_lin
-            gpmodel.Gaussian_noise.variance.fix()
-        
-        elif type == 3:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.scale_ang[0], lengthscale=self.lengthscale_ang[0], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
-            gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = self.noise_variance_ang
-            gpmodel.Gaussian_noise.variance.fix() 
-            
-        elif type == 4:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.scale_ang[1], lengthscale=self.lengthscale_ang[1], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
-            gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = self.noise_variance_ang
-            gpmodel.Gaussian_noise.variance.fix() 
-            
-        elif type == 5:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.scale_ang[2], lengthscale=self.lengthscale_ang[2], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
-            gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = self.noise_variance_ang
-            gpmodel.Gaussian_noise.variance.fix()   
-        
-        #rbf_kern.variance.constrain_bounded(0.05, 0.3, warning=False)  # Set variance bounds
-        #rbf_kern.lengthscale.constrain_bounded(0.04, 0.07, warning=False)  # Set lengthscale bounds
-        
-        
-        # Define a non-zero mean function
-        #x_mean = np.mean(x, axis=0)[0]
-        #y_mean = np.mean(y)
-        ######
-        #data_mean = np.array([0,0])
-        ##if print_mean:
-        ##    print(data_mean)
-        #mean_function = GPy.mappings.Constant(input_dim=2, output_dim=1, value=data_mean)
-
-        
-        # Optimize the model parameters
-        
-            
-            
-            
-            
-            #if type == 'ang' and axis == 0:
-            #    print(gpmodel.rbf.lengthscale)
-                #print(int(axis+type_dict[type]))
-                #print('Lengthscale: {}'.format(self.lengthscale[int(axis+type_dict[type])]))
-                #print('Variance: {}'.format(self.scale[int(axis+type_dict[type])]))
-            
-                
-         
-        #if axis == 2:   
-        #    print('variance: {}'.format(self.scale[2]))
-        #    print('lengthscale: {}'.format(self.lengthscale[2]))
-        #    print('\n')   
-        
-        
-        #print('bias variance: {}'.format(self.gpmodel.sum.bias.variance[0]))
-        #if self.counter == 30:
-        #    self.counter = 0
-        #print('lengthscale: {}'.format(gpmodel.sum.rbf.lengthscale[0]))
-        #print('variance: {}'.format(gpmodel.sum.rbf.variance[0]))
-        #print('variance after optimization: {}'.format(model.linear.variances[0]))
-
-
-        #self.scale = self.gpmodel.rbf.variance[0]
-        #self.lengthscale = self.gpmodel.rbf.lengthscale[0]
-        
-
-        # Predict the mean and variance of the output for the new input
-        mean, var = gpmodel.predict(new_x)
-        
-        # Return the predicted mean
-        return mean, var
-    
-    
-    
     
        
     def setup_mpc(self):
@@ -1412,7 +1195,7 @@ class OffboardControl(Node):
                 self.set_mpc_target_pos()
                 # solve OCP and publish motor command
                 U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
-                print('requested force : {}'.format(U))
+                #print('requested force : {}'.format(U))
                 command = np.asarray([self.map_thrust(u) for u in U])
                 
                 self.publish_motor_command(command)
@@ -1541,52 +1324,33 @@ class OffboardControl(Node):
                 error_ang_z = hist_real_ang_z - hist_sim_ang_z
                
                 
-                start = time.time()
-                # prepare prediction args for multiprocessing
                 
                 
-                #prediction_args = [(np.asarray(hist_sim_lin_x), np.asarray(error_lin_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)]), 0),
-                 #                   (np.asarray(hist_sim_lin_y), np.asarray(error_lin_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)]), 1),
-                  #                  (np.asarray(hist_sim_lin_z), np.asarray(error_lin_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)]), 2),
-                   #                 (np.asarray(hist_sim_ang_x), np.asarray(error_ang_x[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)]), 3),
-                    #                (np.asarray(hist_sim_ang_y), np.asarray(error_ang_y[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)]), 4),
-                     #               (np.asarray(hist_sim_ang_z), np.asarray(error_ang_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)]), 5)]
-                                   
-                #f = lambda x: GP.predict_accel(*x)
-                
-               
-                #with Pool(processes=4) as pool:
-                #    result = pool.map(f, prediction_args)
                 
                 
                 
                 ## predict all errors
-                #gp_prediction_lin_x, gp_prediction_lin_x_var = GP.predict_accel(hist_sim_lin_x, error_lin_x[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)], axis=0)
-                #gp_prediction_lin_y, gp_prediction_lin_y_var = GP.predict_accel(hist_sim_lin_y, error_lin_y[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)], axis=1)
-                #gp_prediction_lin_z, gp_prediction_lin_z_var = GP.predict_accel(hist_sim_lin_z, error_lin_z[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)], axis=2) 
-                #gp_prediction_ang_x, gp_prediction_ang_x_var = GP.predict_accel(hist_sim_ang_x, error_ang_x[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)], axis=3)
-                #gp_prediction_ang_y, gp_prediction_ang_y_var = GP.predict_accel(hist_sim_ang_y, error_ang_y[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)], axis=4)
-                #gp_prediction_ang_z, gp_prediction_ang_z_var = GP.predict_accel(hist_sim_ang_z, error_ang_z[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)], axis=5)
+                gp_prediction_lin_x, gp_prediction_lin_x_var = GP.predict_accel(hist_sim_lin_x, error_lin_x[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(0,3,6,7,8,9)], 0,self.counter, self.optimize)
+                gp_prediction_lin_y, gp_prediction_lin_y_var = GP.predict_accel(hist_sim_lin_y, error_lin_y[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(1,4,6,7,8,9)], 1,self.counter, self.optimize)
+                gp_prediction_lin_z, gp_prediction_lin_z_var = GP.predict_accel(hist_sim_lin_z, error_lin_z[:,0].reshape(-1,1), sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)], 2,self.counter, self.optimize) 
+                gp_prediction_ang_x, gp_prediction_ang_x_var = GP.predict_accel(hist_sim_ang_x, error_ang_x[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(0,3,6,7,8,9)], 3,self.counter, self.optimize)
+                gp_prediction_ang_y, gp_prediction_ang_y_var = GP.predict_accel(hist_sim_ang_y, error_ang_y[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(1,4,6,7,8,9)], 4,self.counter, self.optimize)
+                gp_prediction_ang_z, gp_prediction_ang_z_var = GP.predict_accel(hist_sim_ang_z, error_ang_z[:,0].reshape(-1,1), sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)], 5,self.counter, self.optimize)
 
                 
                 
                 
                 
                 
-                gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_lin_z = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_ang_x = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_ang_y = np.zeros((self.gp_prediction_horizon, 1))
-                gp_prediction_ang_z = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_lin_x = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_lin_y = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_lin_z = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_ang_x = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_ang_y = np.zeros((self.gp_prediction_horizon, 1))
+                #gp_prediction_ang_z = np.zeros((self.gp_prediction_horizon, 1))
 
 
-                #gp_prediction_lin_x, gp_prediction_lin_x_var = result[0]
-                #gp_prediction_lin_y, gp_prediction_lin_y_var = result[1]
-                #gp_prediction_lin_z, gp_prediction_lin_z_var = result[2]
-                #gp_prediction_ang_x, gp_prediction_ang_x_var = result[3]
-                #gp_prediction_ang_y, gp_prediction_ang_y_var = result[4]
-                #gp_prediction_ang_z, gp_prediction_ang_z_var = result[5]
+                
                 
                 
                 
@@ -1643,8 +1407,8 @@ class OffboardControl(Node):
                 
                 
                 stop = time.time()
-                #if (stop-start)*1000 >= 50:
-                #print('execution took too long: {:.2f} ms'.format((stop-start)*1000))  
+                if (stop-start)*1000 >= 50:
+                    print('execution took too long: {:.2f} ms'.format((stop-start)*1000))  
                 
                 
                 
@@ -1664,7 +1428,9 @@ class OffboardControl(Node):
                 #print('Velocity: {}'.format(self.velocity))
                 #print('Attitude: {}'.format(self.attitude))
                 #print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
-
+        elif self.offboard_setpoint_counter == 10:
+                self.engage_offboard_mode()
+                self.arm() 
 
         
 
@@ -1690,4 +1456,3 @@ if __name__ == '__main__':
     except Exception as e:
         print(traceback.format_exc())
         print(e)
- 

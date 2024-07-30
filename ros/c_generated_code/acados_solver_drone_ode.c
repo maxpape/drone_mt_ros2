@@ -609,10 +609,10 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    lbx[0] = -1;
-    ubx[0] = 1;
-    lbx[1] = -1;
-    ubx[1] = 1;
+    lbx[0] = -0.3;
+    ubx[0] = 0.3;
+    lbx[1] = -0.3;
+    ubx[1] = 0.3;
     lbx[2] = -3;
     ubx[2] = 3;
     lbx[3] = -3;
