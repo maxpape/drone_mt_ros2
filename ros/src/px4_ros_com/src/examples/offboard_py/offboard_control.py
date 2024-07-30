@@ -1428,9 +1428,9 @@ class OffboardControl(Node):
                 #print('Velocity: {}'.format(self.velocity))
                 #print('Attitude: {}'.format(self.attitude))
                 #print('Attitude: {}\n'.format(quaternion_to_euler_numpy(self.attitude)))
-        elif self.offboard_setpoint_counter == 10:
-                self.engage_offboard_mode()
-                self.arm() 
+        #elif self.offboard_setpoint_counter == 10:
+         #       self.engage_offboard_mode()
+          #      self.arm() 
 
         
 
