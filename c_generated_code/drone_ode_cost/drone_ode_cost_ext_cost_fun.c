@@ -63,7 +63,7 @@ static const casadi_int casadi_s4[5] = {1, 1, 0, 1, 0};
 /* drone_ode_cost_ext_cost_fun:(i0[17],i1[4],i2[],i3[27])->(o0) */
 static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw, casadi_real* w, int mem) {
   casadi_real a0, a1, a10, a11, a12, a2, a3, a4, a5, a6, a7, a8, a9;
-  a0=200.;
+  a0=1500.;
   a1=arg[0]? arg[0][0] : 0;
   a2=arg[3]? arg[3][14] : 0;
   a3=(a1-a2);
@@ -77,7 +77,7 @@ static int casadi_f0(const casadi_real** arg, casadi_real** res, casadi_int* iw,
   a1=(a1-a2);
   a0=(a0*a1);
   a3=(a3+a0);
-  a0=1000.;
+  a0=3000.;
   a1=arg[0]? arg[0][2] : 0;
   a2=arg[3]? arg[3][16] : 0;
   a4=(a1-a2);
