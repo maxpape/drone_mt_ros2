@@ -864,8 +864,12 @@ class OffboardControl(Node):
         """
         
         self.state_timestamp = vehicle_odometry.timestamp
-        self.position = functions.NED_to_ENU(vehicle_odometry.position)
-        self.velocity = functions.NED_to_ENU(vehicle_odometry.velocity)
+        position = functions.NED_to_ENU(vehicle_odometry.position)
+        self.position = np.multiply(position, np.array([-1,-1,1]))
+        
+        velocity = functions.NED_to_ENU(vehicle_odometry.velocity)
+        self.velocity = np.multiply(velocity, np.array([-1,-1,1]))
+        
         self.attitude = functions.NED_to_ENU(vehicle_odometry.q)
         self.angular_velocity = functions.NED_to_ENU(vehicle_odometry.angular_velocity)
         if self.is_initial_setpoint:
@@ -1374,6 +1378,11 @@ class OffboardControl(Node):
                 self.counter += 1
                 if self.counter == 6:
                     self.counter = 0
+                    print('Position: {}'.format(self.position))
+                    print('Velocity: {}'.format(self.velocity))
+                    print('Attitude: {}'.format(self.attitude))
+                    print('Attitude: {}\n'.format(functions.quaternion_to_euler_numpy(self.attitude)))
+                    print('--------------------------')
                 #
                 
                 
@@ -1406,9 +1415,9 @@ class OffboardControl(Node):
                 
                 
                 
-                stop = time.time()
-                if (stop-start)*1000 >= 50:
-                    print('execution took too long: {:.2f} ms'.format((stop-start)*1000))  
+                #stop = time.time()
+                #if (stop-start)*1000 >= 50:
+                #    print('execution took too long: {:.2f} ms'.format((stop-start)*1000))  
                 
                 
                 
