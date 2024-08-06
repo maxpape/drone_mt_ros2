@@ -34,52 +34,7 @@ np.set_printoptions(suppress=True)
 GP = gp_estimator.GP_estimator()
 GP_torch = gp_estimator_torch.GP_estimator()
 
-def quaternion_inverse_casadi(q):
-    """Invert a quaternion given as a casadi expression
 
-    Args:
-        q (casadi SX): input quaternion
-
-    Returns:
-        casadi SX: inverted quaternion
-    """
-
-    return SX([1, -1, -1, -1]) * q / (norm_2(q)**2)
-
-def multiply_quaternions_casadi(q, p):
-    """Multiply two quaternions given as casadi expressions
-
-    Args:
-        q (casadi SX): quaternion 1
-        p (casadi SX): quaternion 2
-
-    Returns:
-        casadi SX: resulting quaternion
-    """
-    s1 = q[0]
-    v1 = q[1:4]
-    s2 = p[0]
-    v2 = p[1:4]
-    s = s1 * s2 - dot(v1, v2)
-    v = s1 * v2 + s2 * v1 + cross(v1, v2)
-    return vertcat(s, v)
-
-def quaternion_error_casadi(q_ref, q):
-    """Calculate the quaternion error between a reference quaternion q_ref and an origin quaternion q
-
-    Args:
-        q_ref (casadi SX): reference quaternion
-        q (casadi SX): origin quaternion
-
-    Returns:
-        casadi SX: elements x, y, and z from error quaternion (w neglected, since norm(unit quaternion)=1; not suitable for error calculation)
-    """
-    q_error = multiply_quaternions_casadi(q_ref, quaternion_inverse_casadi(q))
-
-    if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
-    
-
-    return q_error[1:4]
 
 def is_setpoint_reached(setpoint, position, attitude, threshold_pos, threshold_att):
     setpoint_position = setpoint[0:3]
@@ -766,14 +721,14 @@ class OffboardControl(Node):
         
           
         
-        parameters = np.concatenate((self.params, trajectory[0], np.zeros(6)), axis=None)
-        self.ocp_solver.set(0, "p", parameters) 
-        self.ocp_solver_nominal.set(0, "p", parameters) 
+        #parameters = np.concatenate((self.params, trajectory[0], np.zeros(6)), axis=None)
+        #self.ocp_solver.set(0, "p", parameters) 
+        #self.ocp_solver_nominal.set(0, "p", parameters) 
         
         
         
         
-        for j in range(1, self.gp_prediction_horizon-1):
+        for j in range(0, self.gp_prediction_horizon-1):
             if self.use_gp:
                 
                 parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j], self.ang_acc_offset[j]), axis=None)
@@ -902,7 +857,7 @@ class OffboardControl(Node):
         Q_q= np.eye(1)*80
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
-        R_U = np.eye(4)*0.08
+        R_U = np.eye(4)*0.5
         
         Q_p_final = np.diag([30,30,70])*8
         Q_q_final = np.eye(1)*80
@@ -1529,13 +1484,6 @@ class OffboardControl(Node):
                 self.counter += 1
                 if self.counter == 6:
                     self.counter = 0
-                    q_err = functions.quaternion_error_numpy(self.current_state[3:7], self.attitude_setpoint)[3]
-                    #yaw_err = functions.quaternion_to_euler_numpy(q_err)[2]
-                    print('Current yaw: {}'.format(functions.quaternion_to_euler_numpy(self.attitude)[2]))
-                    print('Current yaw ref: {}'.format(functions.quaternion_to_euler_numpy(self.attitude_setpoint)[2]))
-                    print(q_err)
-                    
-    
                 #
                 
                 

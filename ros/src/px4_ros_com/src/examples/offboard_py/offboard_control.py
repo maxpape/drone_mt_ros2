@@ -721,14 +721,14 @@ class OffboardControl(Node):
         
           
         
-        parameters = np.concatenate((self.params, trajectory[0], np.zeros(6)), axis=None)
-        self.ocp_solver.set(0, "p", parameters) 
-        self.ocp_solver_nominal.set(0, "p", parameters) 
+        #parameters = np.concatenate((self.params, trajectory[0], np.zeros(6)), axis=None)
+        #self.ocp_solver.set(0, "p", parameters) 
+        #self.ocp_solver_nominal.set(0, "p", parameters) 
         
         
         
         
-        for j in range(1, self.gp_prediction_horizon-1):
+        for j in range(0, self.gp_prediction_horizon-1):
             if self.use_gp:
                 
                 parameters = np.concatenate((self.params, trajectory[j], self.lin_acc_offset[j], self.ang_acc_offset[j]), axis=None)
@@ -857,7 +857,7 @@ class OffboardControl(Node):
         Q_q= np.eye(1)*80
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
-        R_U = np.eye(4)*0.1
+        R_U = np.eye(4)*0.5
         
         Q_p_final = np.diag([30,30,70])*8
         Q_q_final = np.eye(1)*80
