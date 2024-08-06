@@ -36,12 +36,12 @@
 #include "acados_c/ocp_nlp_interface.h"
 #include "acados_c/external_function_interface.h"
 
-#define DRONE_ODE_NX     17
+#define DRONE_ODE_NX     13
 #define DRONE_ODE_NZ     0
 #define DRONE_ODE_NU     4
 #define DRONE_ODE_NP     27
 #define DRONE_ODE_NBX    8
-#define DRONE_ODE_NBX0   17
+#define DRONE_ODE_NBX0   13
 #define DRONE_ODE_NBU    4
 #define DRONE_ODE_NSBX   0
 #define DRONE_ODE_NSBU   0
@@ -99,6 +99,7 @@ typedef struct drone_ode_solver_capsule
     external_function_param_casadi *forw_vde_casadi;
     external_function_param_casadi *expl_ode_fun;
 
+    external_function_param_casadi *hess_vde_casadi;
 
 
 

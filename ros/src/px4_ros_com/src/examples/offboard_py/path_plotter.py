@@ -30,6 +30,8 @@ class PathPlotter(Node):
             VehicleOdometry, '/fmu/out/vehicle_odometry', self.plot_coordinates, qos_profile)
         self.reverence_subscriber = self.create_subscription(
             Vector3, 'reference_traj', self.update_ref, qos_profile)
+        self.reverence_yaw_subscriber = self.create_subscription(
+            Vector3, 'reference_yaw', self.update_yaw_ref, qos_profile)
         
         self.buffer_length = 1000
         buffer_length = self.buffer_length
@@ -42,6 +44,7 @@ class PathPlotter(Node):
         self.last_real_y = 0
         self.last_real_z = 0
         self.last_real_yaw = 0
+        self.last_yaw_ref = 0
         self.last_real_t = time.time()
         self.t_real = collections.deque(maxlen=buffer_length)
         
@@ -71,6 +74,9 @@ class PathPlotter(Node):
         plt.legend()
         plt.ion()
         plt.show()
+        
+    def update_yaw_ref(self, msg):
+        self.last_yaw_ref = msg.x
     def update_ref(self, msg):
         
         if self.is_first:
@@ -80,7 +86,7 @@ class PathPlotter(Node):
         self.x_coords_ref.append(msg.x)
         self.y_coords_ref.append(msg.y)
         self.z_coords_ref.append(msg.z)
-        self.yaw_ref.append(0)
+        self.yaw_ref.append(self.last_yaw_ref)
         self.t_ref.append(t)
         
         

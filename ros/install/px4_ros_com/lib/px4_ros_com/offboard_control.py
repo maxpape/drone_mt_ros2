@@ -34,6 +34,52 @@ np.set_printoptions(suppress=True)
 GP = gp_estimator.GP_estimator()
 GP_torch = gp_estimator_torch.GP_estimator()
 
+def quaternion_inverse_casadi(q):
+    """Invert a quaternion given as a casadi expression
+
+    Args:
+        q (casadi SX): input quaternion
+
+    Returns:
+        casadi SX: inverted quaternion
+    """
+
+    return SX([1, -1, -1, -1]) * q / (norm_2(q)**2)
+
+def multiply_quaternions_casadi(q, p):
+    """Multiply two quaternions given as casadi expressions
+
+    Args:
+        q (casadi SX): quaternion 1
+        p (casadi SX): quaternion 2
+
+    Returns:
+        casadi SX: resulting quaternion
+    """
+    s1 = q[0]
+    v1 = q[1:4]
+    s2 = p[0]
+    v2 = p[1:4]
+    s = s1 * s2 - dot(v1, v2)
+    v = s1 * v2 + s2 * v1 + cross(v1, v2)
+    return vertcat(s, v)
+
+def quaternion_error_casadi(q_ref, q):
+    """Calculate the quaternion error between a reference quaternion q_ref and an origin quaternion q
+
+    Args:
+        q_ref (casadi SX): reference quaternion
+        q (casadi SX): origin quaternion
+
+    Returns:
+        casadi SX: elements x, y, and z from error quaternion (w neglected, since norm(unit quaternion)=1; not suitable for error calculation)
+    """
+    q_error = multiply_quaternions_casadi(q_ref, quaternion_inverse_casadi(q))
+
+    if_else(q_error[0] >= 0, SX([1, -1, -1, -1])*q_error, SX([1, 1, 1, 1])*q_error, True)
+    
+
+    return q_error[1:4]
 
 def is_setpoint_reached(setpoint, position, attitude, threshold_pos, threshold_att):
     setpoint_position = setpoint[0:3]
@@ -234,6 +280,8 @@ class OffboardControl(Node):
             Vector3, '/imu_data_gp', qos_profile)
         self.reference_pub = self.create_publisher(
             Vector3, '/reference_traj', qos_profile)
+        self.reference_pub_yaw = self.create_publisher(
+            Vector3, '/reference_yaw', qos_profile)
 
         # Create subscribers
         self.vehicle_status_subscriber = self.create_subscription(
@@ -267,7 +315,7 @@ class OffboardControl(Node):
         self.Tmin = 0.5
         self.vmax = 4
         self.angular_vmax = 2
-        self.max_angle_q = 0.3
+        self.max_angle_q = 1
         self.max_motor_rpm = 1100
         
         # parameters for system model
@@ -652,12 +700,7 @@ class OffboardControl(Node):
             start = np.concatenate((self.position, self.attitude), axis=None)
             self.trajectory = generate_trajectory(np.vstack((start, self.setpoints)), dist_points*0.65, 10)
             
-            reference = Vector3()
-              
-            reference.x = self.setpoints[0][0]
-            reference.y = self.setpoints[0][1]
-            reference.z = self.setpoints[0][2]
-            self.reference_pub.publish(reference) 
+             
             
         else:
             if self.init_circle:
@@ -675,18 +718,31 @@ class OffboardControl(Node):
             #reached = is_setpoint_reached(self.trajectory[0], self.current_state[0:3], self.attitude, dist_points*0.70, 11)
             
                 #self.circle_traj_index += i
-            reference = Vector3()
-              
-            reference.x = self.trajectory[0][0]
-            reference.y = self.trajectory[0][1]
-            reference.z = self.trajectory[0][2]
-            self.reference_pub.publish(reference) 
+            
             
             a, b = self.trajectory[1:], self.trajectory[0]
             self.trajectory = np.vstack((a, b))
+        if self.fly_circle:
+            index = -1
+        else:
+            index = 0      
                 
-                
+        reference = Vector3()
+        reference_yaw = Vector3()
             
+        reference.x = self.trajectory[index][0]
+        reference.y = self.trajectory[index][1]
+        reference.z = self.trajectory[index][2]
+        
+        q = np.asarray(self.trajectory[index][3:])
+        yaw = functions.quaternion_to_euler_numpy(q)[2]
+        reference_yaw.x = yaw
+        reference_yaw.y = yaw
+        reference_yaw.z = yaw
+        
+        self.reference_pub.publish(reference)
+        
+        self.reference_pub_yaw.publish(reference_yaw)  
         
             
             
@@ -708,9 +764,7 @@ class OffboardControl(Node):
         
                 
         
-        #parameters = np.concatenate((self.params, trajectory[0], np.zeros(6)), axis=None)
-        #self.ocp_solver.set(0, "p", parameters) 
-        #self.ocp_solver_nominal.set(0, "p", parameters)  
+          
         
         parameters = np.concatenate((self.params, trajectory[0], np.zeros(6)), axis=None)
         self.ocp_solver.set(0, "p", parameters) 
@@ -817,183 +871,14 @@ class OffboardControl(Node):
         return SetParametersResult(successful=True)
 
 
-    def predict_accel_lin(self, x, y, new_x, axis, dim=6, active_dims=[0,1]):
-        
-        
-            
-        self.models[axis].set_XY(x, y)
-        
-        for i in range(dim):
-            self.models[axis].rbf.lengthscale[i] = self.length_hypers_lin[axis][i] 
-        self.models[axis].rbf.variance[0] = self.scale_hypers_lin[axis] 
-        self.models[axis].Gaussian_noise.variance = self.noise_variance_lin
-        
-        
-        if self.online_regression :
-            self.models[axis].optimize(max_iters=1)
-            
-            
-            
-        for i in range(dim):
-            self.length_hypers_lin[axis][i] = self.models[axis].rbf.lengthscale[i]
-        
-        self.scale_hypers_lin[axis] = self.models[axis].rbf.variance[0]
-        
-        if axis == 0 and self.show_lin:
-            print(self.length_hypers_lin[axis])
-            print(self.scale_hypers_lin[axis])
-            print('-------------')
-        mean, var = self.models[axis].predict(new_x)
-        
-        
-        
-            
-        return mean, var
     
     
-    def predict_accel_ang(self, x, y, new_x, axis, dim=6, active_dims=[0,1]):
-        
-        
-        self.models[axis+3].set_XY(x, y)
-        
-        for i in range(dim):
-            self.models[axis+3].rbf.lengthscale[i] = self.length_hypers_ang[axis][i] 
-        self.models[axis+3].rbf.variance[0] = self.scale_hypers_lin[axis] 
-        self.models[axis+3].Gaussian_noise.variance = self.noise_variance_ang
-        self.models[axis+3].Gaussian_noise.variance.fix()
-        
-        
-        if self.online_regression :
-            self.models[axis+3].optimize(max_iters=1)
-         
-            
-            
-            
-            
-        for i in range(dim):
-            self.length_hypers_ang[axis][i] = self.models[axis+3].rbf.lengthscale[i]
-        
-        self.scale_hypers_ang[axis] = self.models[axis].rbf.variance[0]
-        
-        if axis == 0 and (not self.show_lin):
-            print(self.length_hypers_ang[axis])
-            print(self.scale_hypers_ang[axis])
-            print('-------------')
-        mean, var = self.models[axis+3].predict(new_x)
-            
-            
-          
-            
-        
-        return mean, var
+    
+    
 
 
     
-    def predict_next_y(self, x, y, new_x, type):
-        """
-        Predict the next y for a given x using GPy.
-
-        Parameters:
-        x (numpy array): Input data from the last 20 timesteps.
-        y (numpy array): Output data from the last 20 timesteps.
-        new_x (numpy array): New input for which to predict the output.
-
-        Returns:
-        numpy array: Predicted output for the new input.
-        """
-        
-        
-        if type == 0:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.scale_lin[0], lengthscale=self.lengthscale_lin[0], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(1, 7, warning=False)  # Set lengthscale bounds
-            gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = self.noise_variance_lin
-            gpmodel.Gaussian_noise.variance.fix()
-            
-        elif type == 1:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.scale_lin[1], lengthscale=self.lengthscale_lin[1], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(1, 7, warning=False)  # Set lengthscale bounds
-            gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = self.noise_variance_lin
-            gpmodel.Gaussian_noise.variance.fix()
-        
-        elif type == 3:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.scale_ang[0], lengthscale=self.lengthscale_ang[0], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
-            gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = self.noise_variance_ang
-            gpmodel.Gaussian_noise.variance.fix() 
-            
-        elif type == 4:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.scale_ang[1], lengthscale=self.lengthscale_ang[1], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
-            gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = self.noise_variance_ang
-            gpmodel.Gaussian_noise.variance.fix() 
-            
-        elif type == 5:
-            kern = GPy.kern.RBF(input_dim=2, variance=self.scale_ang[2], lengthscale=self.lengthscale_ang[2], active_dims=[0,1], ARD=self.use_ard)
-            #kern.variance.constrain_bounded(0.1, 1, warning=False)  # Set variance bounds
-            #kern.lengthscale.constrain_bounded(4, 7, warning=False)  # Set lengthscale bounds
-            gpmodel = GPy.models.GPRegression(x, y, kern)
-            gpmodel.Gaussian_noise.variance = self.noise_variance_ang
-            gpmodel.Gaussian_noise.variance.fix()   
-        
-        #rbf_kern.variance.constrain_bounded(0.05, 0.3, warning=False)  # Set variance bounds
-        #rbf_kern.lengthscale.constrain_bounded(0.04, 0.07, warning=False)  # Set lengthscale bounds
-        
-        
-        # Define a non-zero mean function
-        #x_mean = np.mean(x, axis=0)[0]
-        #y_mean = np.mean(y)
-        ######
-        #data_mean = np.array([0,0])
-        ##if print_mean:
-        ##    print(data_mean)
-        #mean_function = GPy.mappings.Constant(input_dim=2, output_dim=1, value=data_mean)
-
-        
-        # Optimize the model parameters
-        
-            
-            
-            
-            
-            #if type == 'ang' and axis == 0:
-            #    print(gpmodel.rbf.lengthscale)
-                #print(int(axis+type_dict[type]))
-                #print('Lengthscale: {}'.format(self.lengthscale[int(axis+type_dict[type])]))
-                #print('Variance: {}'.format(self.scale[int(axis+type_dict[type])]))
-            
-                
-         
-        #if axis == 2:   
-        #    print('variance: {}'.format(self.scale[2]))
-        #    print('lengthscale: {}'.format(self.lengthscale[2]))
-        #    print('\n')   
-        
-        
-        #print('bias variance: {}'.format(self.gpmodel.sum.bias.variance[0]))
-        #if self.counter == 30:
-        #    self.counter = 0
-        #print('lengthscale: {}'.format(gpmodel.sum.rbf.lengthscale[0]))
-        #print('variance: {}'.format(gpmodel.sum.rbf.variance[0]))
-        #print('variance after optimization: {}'.format(model.linear.variances[0]))
-
-
-        #self.scale = self.gpmodel.rbf.variance[0]
-        #self.lengthscale = self.gpmodel.rbf.lengthscale[0]
-        
-
-        # Predict the mean and variance of the output for the new input
-        mean, var = gpmodel.predict(new_x)
-        
-        # Return the predicted mean
-        return mean, var
+    
     
     
     
@@ -1013,14 +898,14 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([30,30,70])*8
-        Q_q= np.eye(1)*20
+        Q_p= np.diag([30,30,70])*10
+        Q_q= np.eye(1)*80
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
-        R_U = np.eye(4)*0.1
+        R_U = np.eye(4)*0.08
         
-        Q_p_final = np.diag([30,30,70])*5
-        Q_q_final = np.eye(1)*20
+        Q_p_final = np.diag([30,30,70])*8
+        Q_q_final = np.eye(1)*80
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
@@ -1075,6 +960,7 @@ class OffboardControl(Node):
         ocp.solver_options.integrator_type = 'ERK'
         ocp.solver_options.nlp_solver_type = 'SQP_RTI'
         ocp.solver_options.qp_solver = 'PARTIAL_CONDENSING_OSQP'
+        ocp.solver_options.hessian_approx = 'EXACT'
         
         
         # create ACADOS solver
@@ -1643,6 +1529,13 @@ class OffboardControl(Node):
                 self.counter += 1
                 if self.counter == 6:
                     self.counter = 0
+                    q_err = functions.quaternion_error_numpy(self.current_state[3:7], self.attitude_setpoint)[3]
+                    #yaw_err = functions.quaternion_to_euler_numpy(q_err)[2]
+                    print('Current yaw: {}'.format(functions.quaternion_to_euler_numpy(self.attitude)[2]))
+                    print('Current yaw ref: {}'.format(functions.quaternion_to_euler_numpy(self.attitude_setpoint)[2]))
+                    print(q_err)
+                    
+    
                 #
                 
                 

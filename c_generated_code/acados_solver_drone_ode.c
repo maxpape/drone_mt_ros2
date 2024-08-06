@@ -334,6 +334,10 @@ void drone_ode_acados_create_3_create_and_set_functions(drone_ode_solver_capsule
     for (int i = 0; i < N; i++) {
         MAP_CASADI_FNC(expl_ode_fun[i], drone_ode_expl_ode_fun);
     }
+    capsule->hess_vde_casadi = (external_function_param_casadi *) malloc(sizeof(external_function_param_casadi)*N);
+    for (int i = 0; i < N; i++) {
+        MAP_CASADI_FNC(hess_vde_casadi[i], drone_ode_expl_ode_hess);
+    }
 
 
     // external cost
@@ -454,6 +458,7 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     {
         ocp_nlp_dynamics_model_set(nlp_config, nlp_dims, nlp_in, i, "expl_vde_forw", &capsule->forw_vde_casadi[i]);
         ocp_nlp_dynamics_model_set(nlp_config, nlp_dims, nlp_in, i, "expl_ode_fun", &capsule->expl_ode_fun[i]);
+        ocp_nlp_dynamics_model_set(nlp_config, nlp_dims, nlp_in, i, "expl_ode_hess", &capsule->hess_vde_casadi[i]);
     }
 
     /**** Cost ****/
@@ -592,10 +597,10 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    lbx[0] = -0.3;
-    ubx[0] = 0.3;
-    lbx[1] = -0.3;
-    ubx[1] = 0.3;
+    lbx[0] = -1;
+    ubx[0] = 1;
+    lbx[1] = -1;
+    ubx[1] = 1;
     lbx[2] = -4;
     ubx[2] = 4;
     lbx[3] = -4;
@@ -654,7 +659,18 @@ void drone_ode_acados_create_6_set_opts(drone_ode_solver_capsule* capsule)
     *  opts
     ************************************************/
 
-int fixed_hess = 0;
+
+    int nlp_solver_exact_hessian = 1;
+    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess", &nlp_solver_exact_hessian);
+
+    int exact_hess_dyn = 1;
+    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess_dyn", &exact_hess_dyn);
+
+    int exact_hess_cost = 1;
+    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess_cost", &exact_hess_cost);
+
+    int exact_hess_constr = 1;
+    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess_constr", &exact_hess_constr);int fixed_hess = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "fixed_hess", &fixed_hess);
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "globalization", "fixed_step");int with_solution_sens_wrt_params = false;
     ocp_nlp_solver_opts_set(nlp_config, capsule->nlp_opts, "with_solution_sens_wrt_params", &with_solution_sens_wrt_params);
@@ -921,6 +937,7 @@ int drone_ode_acados_update_params(drone_ode_solver_capsule* capsule, int stage,
     {
         capsule->forw_vde_casadi[stage].set_param(capsule->forw_vde_casadi+stage, p);
         capsule->expl_ode_fun[stage].set_param(capsule->expl_ode_fun+stage, p);
+        capsule->hess_vde_casadi[stage].set_param(capsule->hess_vde_casadi+stage, p);
 
         // constraints
         if (stage == 0)
@@ -989,6 +1006,7 @@ int drone_ode_acados_update_params_sparse(drone_ode_solver_capsule * capsule, in
     {
         capsule->forw_vde_casadi[stage].set_param_sparse(capsule->forw_vde_casadi+stage, n_update, idx, p);
         capsule->expl_ode_fun[stage].set_param_sparse(capsule->expl_ode_fun+stage, n_update, idx, p);
+        capsule->hess_vde_casadi[stage].set_param_sparse(capsule->hess_vde_casadi+stage, n_update, idx, p);
 
         // constraints
         if (stage == 0)
@@ -1062,9 +1080,11 @@ int drone_ode_acados_free(drone_ode_solver_capsule* capsule)
     {
         external_function_param_casadi_free(&capsule->forw_vde_casadi[i]);
         external_function_param_casadi_free(&capsule->expl_ode_fun[i]);
+        external_function_param_casadi_free(&capsule->hess_vde_casadi[i]);
     }
     free(capsule->forw_vde_casadi);
     free(capsule->expl_ode_fun);
+    free(capsule->hess_vde_casadi);
 
     // cost
     external_function_param_casadi_free(&capsule->ext_cost_0_fun);

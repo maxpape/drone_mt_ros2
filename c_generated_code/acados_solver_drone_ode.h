@@ -99,6 +99,7 @@ typedef struct drone_ode_solver_capsule
     external_function_param_casadi *forw_vde_casadi;
     external_function_param_casadi *expl_ode_fun;
 
+    external_function_param_casadi *hess_vde_casadi;
 
 
 

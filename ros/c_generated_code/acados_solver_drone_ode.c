@@ -237,7 +237,7 @@ ocp_nlp_dims* drone_ode_acados_create_2_create_and_set_dimensions(drone_ode_solv
     nbx[0] = NBX0;
     nsbx[0] = 0;
     ns[0] = NS0;
-    nbxe[0] = 17;
+    nbxe[0] = 13;
     ny[0] = NY0;
     nh[0] = NH0;
     nsh[0] = NSH0;
@@ -333,6 +333,10 @@ void drone_ode_acados_create_3_create_and_set_functions(drone_ode_solver_capsule
     capsule->expl_ode_fun = (external_function_param_casadi *) malloc(sizeof(external_function_param_casadi)*N);
     for (int i = 0; i < N; i++) {
         MAP_CASADI_FNC(expl_ode_fun[i], drone_ode_expl_ode_fun);
+    }
+    capsule->hess_vde_casadi = (external_function_param_casadi *) malloc(sizeof(external_function_param_casadi)*N);
+    for (int i = 0; i < N; i++) {
+        MAP_CASADI_FNC(hess_vde_casadi[i], drone_ode_expl_ode_hess);
     }
 
 
@@ -454,6 +458,7 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     {
         ocp_nlp_dynamics_model_set(nlp_config, nlp_dims, nlp_in, i, "expl_vde_forw", &capsule->forw_vde_casadi[i]);
         ocp_nlp_dynamics_model_set(nlp_config, nlp_dims, nlp_in, i, "expl_ode_fun", &capsule->expl_ode_fun[i]);
+        ocp_nlp_dynamics_model_set(nlp_config, nlp_dims, nlp_in, i, "expl_ode_hess", &capsule->hess_vde_casadi[i]);
     }
 
     /**** Cost ****/
@@ -499,10 +504,6 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     idxbx0[10] = 10;
     idxbx0[11] = 11;
     idxbx0[12] = 12;
-    idxbx0[13] = 13;
-    idxbx0[14] = 14;
-    idxbx0[15] = 15;
-    idxbx0[16] = 16;
 
     double* lubx0 = calloc(2*NBX0, sizeof(double));
     double* lbx0 = lubx0;
@@ -512,14 +513,6 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     ubx0[3] = 0.7071067811865476;
     lbx0[6] = -0.7071067811865476;
     ubx0[6] = -0.7071067811865476;
-    lbx0[13] = 3.67875;
-    ubx0[13] = 3.67875;
-    lbx0[14] = 3.67875;
-    ubx0[14] = 3.67875;
-    lbx0[15] = 3.67875;
-    ubx0[15] = 3.67875;
-    lbx0[16] = 3.67875;
-    ubx0[16] = 3.67875;
 
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "idxbx", idxbx0);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "lbx", lbx0);
@@ -527,7 +520,7 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     free(idxbx0);
     free(lubx0);
     // idxbxe_0
-    int* idxbxe_0 = malloc(17 * sizeof(int));
+    int* idxbxe_0 = malloc(13 * sizeof(int));
     
     idxbxe_0[0] = 0;
     idxbxe_0[1] = 1;
@@ -542,10 +535,6 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     idxbxe_0[10] = 10;
     idxbxe_0[11] = 11;
     idxbxe_0[12] = 12;
-    idxbxe_0[13] = 13;
-    idxbxe_0[14] = 14;
-    idxbxe_0[15] = 15;
-    idxbxe_0[16] = 16;
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "idxbxe", idxbxe_0);
     free(idxbxe_0);
 
@@ -608,10 +597,10 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    lbx[0] = -0.3;
-    ubx[0] = 0.3;
-    lbx[1] = -0.3;
-    ubx[1] = 0.3;
+    lbx[0] = -1;
+    ubx[0] = 1;
+    lbx[1] = -1;
+    ubx[1] = 1;
     lbx[2] = -4;
     ubx[2] = 4;
     lbx[3] = -4;
@@ -670,7 +659,18 @@ void drone_ode_acados_create_6_set_opts(drone_ode_solver_capsule* capsule)
     *  opts
     ************************************************/
 
-int fixed_hess = 0;
+
+    int nlp_solver_exact_hessian = 1;
+    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess", &nlp_solver_exact_hessian);
+
+    int exact_hess_dyn = 1;
+    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess_dyn", &exact_hess_dyn);
+
+    int exact_hess_cost = 1;
+    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess_cost", &exact_hess_cost);
+
+    int exact_hess_constr = 1;
+    ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "exact_hess_constr", &exact_hess_constr);int fixed_hess = 0;
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "fixed_hess", &fixed_hess);
     ocp_nlp_solver_opts_set(nlp_config, nlp_opts, "globalization", "fixed_step");int with_solution_sens_wrt_params = false;
     ocp_nlp_solver_opts_set(nlp_config, capsule->nlp_opts, "with_solution_sens_wrt_params", &with_solution_sens_wrt_params);
@@ -771,10 +771,6 @@ void drone_ode_acados_create_7_set_nlp_out(drone_ode_solver_capsule* capsule)
     
     x0[3] = 0.7071067811865476;
     x0[6] = -0.7071067811865476;
-    x0[13] = 3.67875;
-    x0[14] = 3.67875;
-    x0[15] = 3.67875;
-    x0[16] = 3.67875;
 
 
     double* u0 = xu0 + NX;
@@ -941,6 +937,7 @@ int drone_ode_acados_update_params(drone_ode_solver_capsule* capsule, int stage,
     {
         capsule->forw_vde_casadi[stage].set_param(capsule->forw_vde_casadi+stage, p);
         capsule->expl_ode_fun[stage].set_param(capsule->expl_ode_fun+stage, p);
+        capsule->hess_vde_casadi[stage].set_param(capsule->hess_vde_casadi+stage, p);
 
         // constraints
         if (stage == 0)
@@ -1009,6 +1006,7 @@ int drone_ode_acados_update_params_sparse(drone_ode_solver_capsule * capsule, in
     {
         capsule->forw_vde_casadi[stage].set_param_sparse(capsule->forw_vde_casadi+stage, n_update, idx, p);
         capsule->expl_ode_fun[stage].set_param_sparse(capsule->expl_ode_fun+stage, n_update, idx, p);
+        capsule->hess_vde_casadi[stage].set_param_sparse(capsule->hess_vde_casadi+stage, n_update, idx, p);
 
         // constraints
         if (stage == 0)
@@ -1082,9 +1080,11 @@ int drone_ode_acados_free(drone_ode_solver_capsule* capsule)
     {
         external_function_param_casadi_free(&capsule->forw_vde_casadi[i]);
         external_function_param_casadi_free(&capsule->expl_ode_fun[i]);
+        external_function_param_casadi_free(&capsule->hess_vde_casadi[i]);
     }
     free(capsule->forw_vde_casadi);
     free(capsule->expl_ode_fun);
+    free(capsule->hess_vde_casadi);
 
     // cost
     external_function_param_casadi_free(&capsule->ext_cost_0_fun);

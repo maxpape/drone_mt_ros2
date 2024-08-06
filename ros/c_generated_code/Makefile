@@ -39,6 +39,7 @@ MODEL_SRC=
 MODEL_SRC+= drone_ode_model/drone_ode_expl_ode_fun.c
 MODEL_SRC+= drone_ode_model/drone_ode_expl_vde_forw.c
 MODEL_SRC+= drone_ode_model/drone_ode_expl_vde_adj.c
+MODEL_SRC+= drone_ode_model/drone_ode_expl_ode_hess.c
 MODEL_OBJ := $(MODEL_SRC:.c=.o)
 
 # optimal control problem - mostly CasADi exports
