@@ -261,7 +261,7 @@ class OffboardControl(Node):
         # variables for ACADOS MPC
         self.N_horizon = 20
         self.Tf = 1
-        self.nx = 17
+        self.nx = 13
         self.nu = 4
         self.Tmax = 10
         self.Tmin = 0.5
@@ -1013,14 +1013,14 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([100,100,200])*15
-        Q_q= np.eye(1)*100
+        Q_p= np.diag([30,30,70])*8
+        Q_q= np.eye(1)*20
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
-        R_U = np.eye(4)
+        R_U = np.eye(4)*0.1
         
-        Q_p_final = np.diag([100,100,200])*10
-        Q_q_final = np.eye(1)*100
+        Q_p_final = np.diag([30,30,70])*5
+        Q_q_final = np.eye(1)*20
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
@@ -1059,7 +1059,7 @@ class OffboardControl(Node):
         
         # set initial state
     
-        ocp.constraints.x0 = self.current_state[:-1]
+        ocp.constraints.x0 = self.current_state[:-5]
                 
         
 
@@ -1178,7 +1178,7 @@ class OffboardControl(Node):
     
     
     
-    def calculate_sim_acc_from_vel(self, simx, lin_or_ang='lin'):
+    def calculate_sim_acc_from_vel(self, simx, simu, lin_or_ang='lin'):
         
         vel = {"lin": simx[:,7:10],
                     "ang": simx[:,10:13],
@@ -1213,7 +1213,7 @@ class OffboardControl(Node):
         
             
             
-        accel_vel = np.hstack((accel, v1, simx[1:,13:17]))
+        accel_vel = np.hstack((accel, v1, simu[1:]))
         
         history[lin_or_ang].append(accel_vel)
             
@@ -1372,7 +1372,7 @@ class OffboardControl(Node):
                 
                 # let solver warm up before actually publishing commands
                 
-                U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
+                U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state[:-5], fail_on_nonzero_status=False)
                 command = np.asarray([self.map_thrust(u) for u in U])
                 
                 self.publish_motor_command(np.zeros(4))
@@ -1380,17 +1380,20 @@ class OffboardControl(Node):
                 #U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
                 # get simulated response for next #prediction_horizon time steps
                 simx = []
+                simu = []
                 for i in range(self.gp_prediction_horizon):
                     simx.append(self.ocp_solver.get(i, 'x'))
+                    simu.append(self.ocp_solver.get(i, 'u'))
                 simx = np.asarray(simx)
+                simu = np.asarray(simu)
                 
                 
                 # calculate linear acceleration for next time steps; used to predict error
-                sim_accel_pred_lin = self.calculate_sim_acc_from_vel(simx, 'lin')
+                sim_accel_pred_lin = self.calculate_sim_acc_from_vel(simx, simu, 'lin')
                 
                 
                 # calculate angular acceleration for next time steps; used to predict error
-                sim_accel_pred_ang = self.calculate_sim_acc_from_vel(simx, 'ang')
+                sim_accel_pred_ang = self.calculate_sim_acc_from_vel(simx, simu, 'ang')
 
                 
                 
@@ -1442,28 +1445,28 @@ class OffboardControl(Node):
                 # set parameters and trajectory     
                 self.set_mpc_target_pos()
                 # solve OCP and publish motor command
-                U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
+                U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-5], fail_on_nonzero_status=False)
                 command = np.asarray([self.map_thrust(u) for u in U])
                 #command = np.zeros(4)
                 self.publish_motor_command(command)
                 
-                U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
+                U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-5], fail_on_nonzero_status=False)
                 # get simulated response for next #prediction_horizon time steps
                 simx = []
+                simu = []
                 for i in range(self.gp_prediction_horizon):
-                    x = self.ocp_solver_nominal.get(i, 'x')
-                    
-                    #simx.append(np.hstack((x,u)))
-                    simx.append(x)
+                    simx.append(self.ocp_solver_nominal.get(i, 'x'))
+                    simu.append(self.ocp_solver_nominal.get(i, 'u'))
                 simx = np.asarray(simx)
+                simu = np.asarray(simu)
                 
                 
                 # calculate linear acceleration for next time steps; used to predict error
-                sim_accel_pred_lin = self.calculate_sim_acc_from_vel(simx, 'lin')
+                sim_accel_pred_lin = self.calculate_sim_acc_from_vel(simx, simu, 'lin')
                 
                 
                 # calculate angular acceleration for next time steps; used to predict error
-                sim_accel_pred_ang = self.calculate_sim_acc_from_vel(simx, 'ang')
+                sim_accel_pred_ang = self.calculate_sim_acc_from_vel(simx, simu, 'ang')
 
                 
                 

@@ -237,7 +237,7 @@ ocp_nlp_dims* drone_ode_acados_create_2_create_and_set_dimensions(drone_ode_solv
     nbx[0] = NBX0;
     nsbx[0] = 0;
     ns[0] = NS0;
-    nbxe[0] = 17;
+    nbxe[0] = 13;
     ny[0] = NY0;
     nh[0] = NH0;
     nsh[0] = NSH0;
@@ -499,10 +499,6 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     idxbx0[10] = 10;
     idxbx0[11] = 11;
     idxbx0[12] = 12;
-    idxbx0[13] = 13;
-    idxbx0[14] = 14;
-    idxbx0[15] = 15;
-    idxbx0[16] = 16;
 
     double* lubx0 = calloc(2*NBX0, sizeof(double));
     double* lbx0 = lubx0;
@@ -512,14 +508,6 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     ubx0[3] = 0.7071067811865476;
     lbx0[6] = -0.7071067811865476;
     ubx0[6] = -0.7071067811865476;
-    lbx0[13] = 3.67875;
-    ubx0[13] = 3.67875;
-    lbx0[14] = 3.67875;
-    ubx0[14] = 3.67875;
-    lbx0[15] = 3.67875;
-    ubx0[15] = 3.67875;
-    lbx0[16] = 3.67875;
-    ubx0[16] = 3.67875;
 
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "idxbx", idxbx0);
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "lbx", lbx0);
@@ -527,7 +515,7 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     free(idxbx0);
     free(lubx0);
     // idxbxe_0
-    int* idxbxe_0 = malloc(17 * sizeof(int));
+    int* idxbxe_0 = malloc(13 * sizeof(int));
     
     idxbxe_0[0] = 0;
     idxbxe_0[1] = 1;
@@ -542,10 +530,6 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     idxbxe_0[10] = 10;
     idxbxe_0[11] = 11;
     idxbxe_0[12] = 12;
-    idxbxe_0[13] = 13;
-    idxbxe_0[14] = 14;
-    idxbxe_0[15] = 15;
-    idxbxe_0[16] = 16;
     ocp_nlp_constraints_model_set(nlp_config, nlp_dims, nlp_in, 0, "idxbxe", idxbxe_0);
     free(idxbxe_0);
 
@@ -771,10 +755,6 @@ void drone_ode_acados_create_7_set_nlp_out(drone_ode_solver_capsule* capsule)
     
     x0[3] = 0.7071067811865476;
     x0[6] = -0.7071067811865476;
-    x0[13] = 3.67875;
-    x0[14] = 3.67875;
-    x0[15] = 3.67875;
-    x0[16] = 3.67875;
 
 
     double* u0 = xu0 + NX;

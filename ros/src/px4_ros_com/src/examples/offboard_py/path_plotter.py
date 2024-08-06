@@ -50,6 +50,14 @@ class PathPlotter(Node):
         
         self.is_first = True
         self.first_ref = np.zeros(3)
+        
+        self.max_x = 1
+        self.max_y = 1
+        self.max_z = 1
+        
+        self.min_x = -1
+        self.min_y = -1
+        self.min_z = -1
 
         
         
@@ -77,6 +85,24 @@ class PathPlotter(Node):
         self.z_coords.append(self.last_real_z)
         self.t_real.append(self.last_real_t)
         
+        if self.max_x < np.max(self.x_coords):
+            self.max_x = np.max(self.x_coords)
+        
+        if self.max_y < np.max(self.y_coords):
+            self.max_y = np.max(self.y_coords)
+            
+        if self.max_z < np.max(self.z_coords):
+            self.max_z = np.max(self.z_coords)
+        
+        if self.min_x > np.min(self.x_coords):
+            self.min_x = np.min(self.x_coords)
+        
+        if self.min_y > np.min(self.y_coords):
+            self.min_y = np.min(self.y_coords)
+            
+        if self.min_z > np.min(self.z_coords):
+            self.min_z = np.min(self.z_coords)
+        
         
     def plot_coordinates(self, msg):
         pos = functions.NED_to_ENU(msg.position)
@@ -92,9 +118,10 @@ class PathPlotter(Node):
         self.line_ref.set_data(self.x_coords_ref, self.y_coords_ref)
         self.line_ref.set_3d_properties(self.z_coords_ref)
 
-        self.ax.set_xlim(-10, 6)
-        self.ax.set_ylim(-8, 8)
-        self.ax.set_zlim(0, 5)
+
+        self.ax.set_xlim(self.min_x -1, self.max_x+1)
+        self.ax.set_ylim(self.min_y -1, self.max_y+1)
+        self.ax.set_zlim(self.min_z -1, self.max_z+1)
 
         self.fig.canvas.draw()
         self.fig.canvas.flush_events()
