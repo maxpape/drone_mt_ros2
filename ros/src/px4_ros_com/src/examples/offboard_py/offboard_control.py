@@ -154,24 +154,7 @@ def generate_figure_8_trajectory(center, radius, d_points, yaw):
 
 
 
-def find_closest_point(a, b):
-    """
-    Find the index of the point in array b that is closest to the point in array a.
 
-    Parameters:
-    a (numpy.ndarray): A 1D array representing a single point in 3D (shape: (3,))
-    b (numpy.ndarray): A 2D array representing multiple points in 3D (shape: (n, 3))
-
-    Returns:
-    int: The index of the closest point in array b
-    """
-    # Calculate the squared differences between the point a and each point in b
-    squared_diffs = np.sum((b - a) ** 2, axis=1)
-    
-    # Find the index of the minimum squared difference
-    closest_index = np.argmin(squared_diffs)
-    
-    return closest_index
 
 
 
@@ -248,7 +231,6 @@ class OffboardControl(Node):
         
 
         self.counter = 0
-        self.counter_2 = 0
         self.fly_circle = False
         self.init_circle = True
         self.circle_radius = 5.0
@@ -270,7 +252,7 @@ class OffboardControl(Node):
         self.Tmin = 0.5
         self.vmax = 4
         self.angular_vmax = 2
-        self.max_angle_q = 1
+        self.max_angle_q = 0.35
         self.max_motor_rpm = 1100
         
         # parameters for system model
@@ -376,49 +358,7 @@ class OffboardControl(Node):
         self.show_lin = True
         self.backsteps_plot = 0
         
-        self.length_hypers_lin = [[1,5,1,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7]]
-        self.scale_hypers_lin = [1, 1, 1]
-        self.length_hypers_ang = [[1,5,7,7,7,7], [1,5,7,7,7,7], [1,5,7,7,7,7]]
-        self.scale_hypers_ang = [1, 1, 1]
         
-        
-        
-        
-        
-        kerns = [GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers_lin[0], lengthscale=self.length_hypers_lin[0], active_dims=[0,1,2,3,4,5], ARD=True)]
-        lower_lenght_lin = [0.1, 0.1, 4,4,4,4]
-        upper_lenght_lin = [10, 10, 20,20,20,20]
-        lower_lenght_ang = [0.1, 0.1, 0.1,0.1,0.1,0.1]
-        upper_lenght_ang = [50,50,50,50,50,50]
-        
-        for i in range(3):
-            for j in range(6):
-                kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght_lin[j], upper_lenght_lin[j])
-            #kerns[i].variance.constrain_bounded(1e-3, 5)
-            kerns[i].variance.fix()
-        for i in range(3,6):
-            for j in range(6):
-                kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght_ang[j], upper_lenght_ang[j])
-            #kerns[i].variance.constrain_bounded(1e-3, 5)
-            kerns[i].variance.fix()
-        
-        
-        
-        self.models = [GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[0]),
-                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[1]),
-                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[2]),
-                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[3]),
-                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[4]),
-                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[5])]
-        
-        for model in self.models:
-            model.Gaussian_noise.variance = self.noise_variance_lin
-            model.Gaussian_noise.variance.fix()
             
         
         
