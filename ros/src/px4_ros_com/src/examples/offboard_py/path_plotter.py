@@ -37,15 +37,18 @@ class PathPlotter(Node):
         self.x_coords = collections.deque(maxlen=buffer_length)
         self.y_coords = collections.deque(maxlen=buffer_length)
         self.z_coords = collections.deque(maxlen=buffer_length)
+        self.yaw = collections.deque(maxlen=buffer_length)
         self.last_real_x = 0
         self.last_real_y = 0
         self.last_real_z = 0
+        self.last_real_yaw = 0
         self.last_real_t = time.time()
         self.t_real = collections.deque(maxlen=buffer_length)
         
         self.x_coords_ref = collections.deque(maxlen=buffer_length)
         self.y_coords_ref = collections.deque(maxlen=buffer_length)
         self.z_coords_ref = collections.deque(maxlen=buffer_length)
+        self.yaw_ref = collections.deque(maxlen=buffer_length)
         self.t_ref = collections.deque(maxlen=buffer_length)
         
         self.is_first = True
@@ -77,12 +80,14 @@ class PathPlotter(Node):
         self.x_coords_ref.append(msg.x)
         self.y_coords_ref.append(msg.y)
         self.z_coords_ref.append(msg.z)
+        self.yaw_ref.append(0)
         self.t_ref.append(t)
         
         
         self.x_coords.append(self.last_real_x)
         self.y_coords.append(self.last_real_y)
         self.z_coords.append(self.last_real_z)
+        self.yaw.append(self.last_real_yaw)
         self.t_real.append(self.last_real_t)
         
         if self.max_x < np.max(self.x_coords):
@@ -106,6 +111,8 @@ class PathPlotter(Node):
         
     def plot_coordinates(self, msg):
         pos = functions.NED_to_ENU(msg.position)
+        attitude = functions.NED_to_ENU(msg.q)
+        self.last_real_yaw = functions.quaternion_to_euler_numpy(attitude)[2]
         
         self.last_real_x = pos[0]
         self.last_real_y = pos[1]
@@ -146,17 +153,20 @@ class PathPlotter(Node):
         if idx == idy == idz:
             x = np.array(list(self.x_coords))
             y = np.array(list(self.y_coords))
-            z = np.array(list(self.z_coords))     
+            z = np.array(list(self.z_coords))
+            yaw = np.array(list(self.yaw))      
             real = np.vstack((x,y,z))
             
             x_ref = np.array(list(self.x_coords_ref))
             y_ref = np.array(list(self.y_coords_ref))
-            z_ref = np.array(list(self.z_coords_ref))        
+            z_ref = np.array(list(self.z_coords_ref))   
+            yaw_ref = np.array(list(self.yaw_ref))   
             ref = np.vstack((x_ref, y_ref, z_ref))
             
             
             
             diff_vector = ref-real
+            diff_yaw = np.abs(yaw_ref-yaw)
             
             diff = np.linalg.norm(diff_vector, axis=0)
             
@@ -164,9 +174,10 @@ class PathPlotter(Node):
             mean_x  = np.round(np.mean(np.abs(diff_vector[0])), decimals=4)
             mean_y  = np.round(np.mean(np.abs(diff_vector[1])), decimals=4)
             mean_z  = np.round(np.mean(np.abs(diff_vector[2])), decimals=4)
+            mean_yaw = np.round(np.mean(diff_yaw), decimals=2)
             
             #print('Average deviation of {:.4f} m over last {} samples. diff x: {}, diff y: {}, diff z: {}'.format(np.mean(diff), diff.shape[0], np.mean(np.abs(diff_vector[0])), np.mean(np.abs(diff_vector[1])), np.mean(np.abs(diff_vector[2]))))
-            print('{:.4f},{:.4f},{:.4f},{:.4f}'.format(mean_eu, mean_x, mean_y, mean_z) )  
+            print('{:.4f},{:.4f},{:.4f},{:.4f},{:.2f}'.format(mean_eu, mean_x, mean_y, mean_z, mean_yaw) )  
             
             
             self.x_coords_ref.clear()
@@ -189,7 +200,7 @@ class PathPlotter(Node):
 def main(args=None) -> None:
     rclpy.init(args=args)
     path_plotter = PathPlotter()
-    print('start')
+    print('diff_eu,diff_x,diff_y,diff_z,diff_yaw')
     rclpy.spin(path_plotter)
     path_plotter.destroy_node()
     rclpy.shutdown()
