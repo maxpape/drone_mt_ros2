@@ -291,7 +291,7 @@ class OffboardControl(Node):
                             self.c_tau])
         
         # imu data
-        history_length = 30
+        history_length = 20
         
         self.linear_accel_real = np.zeros(3)
         self.angular_accel_real = np.zeros(3)
@@ -1290,10 +1290,23 @@ class OffboardControl(Node):
              
                 ## prediction of linear acceleration error
                 real_hist_lin = np.nan_to_num(np.asarray(list(self.imu_history)[1:]), nan=0)[:,(0,1,2,3,4,5,6,13,14,15,16)]             # history of measured acceleration and velocity
-                #sim_hist_lin = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[:-1]), nan=0)     # history of acceleration and velocity from 1-step prediction of mpc
+                sim_hist_lin = np.nan_to_num(np.asarray(list(self.sim_imu_lin_history)[:-1]), nan=0)     # history of acceleration and velocity from 1-step prediction of mpc
                 sim_accel_pred_lin_ext = np.vstack((sim_accel_pred_lin, self.sim_imu_lin_history[-2][:-1]))     # multi-step prediction of acceleration and velocity from mpc
                 #
                 #error = real_hist_lin - sim_hist_lin
+                
+                #hist_sim_lin_x = sim_hist_lin[:,(0,3,6,7,8,9)]
+                #hist_real_lin_x = real_hist_lin[:,(0,3,6,7,8,9)] 
+                #error_lin_x = hist_real_lin_x - hist_sim_lin_x
+                #
+                #
+                #
+                #hist_sim_lin_y = sim_hist_lin[:,(1,4,6,7,8,9)]
+                #hist_real_lin_y = real_hist_lin[:,(1,4,6,7,8,9)] 
+                #error_lin_y = hist_real_lin_y - hist_sim_lin_y
+                
+                
+                
                 
                 
                 

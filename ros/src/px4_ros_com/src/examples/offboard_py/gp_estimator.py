@@ -90,9 +90,7 @@ class GP_estimator():
         
     def predict_accel(self, x, y, new_x, axis, optimize, dim=6):
         
-        #if axis == 2:
-        y_mean = np.mean(y)
-        y = y-y_mean   
+          
         self.models[axis].set_XY(x, y)
         
         #for i in range(dim):
@@ -123,8 +121,6 @@ class GP_estimator():
             #print('-------------')
         mean, var = self.models[axis].predict(new_x)
         
-        #if axis == 2:
-        mean = mean + y_mean
         
             
         return mean, var
