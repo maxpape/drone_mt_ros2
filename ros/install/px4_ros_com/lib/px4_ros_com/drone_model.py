@@ -68,8 +68,9 @@ def export_drone_ode_model() -> AcadosModel:
     )  # Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
     v_WB = SX.sym("v_WB", 3)  # Linear velocity of the quadrotor
     omega_B = SX.sym("omega_B", 3)  # Angular velocity of the quadrotor in body frame
-   
-    x = vertcat(p_WB, q_WB, v_WB, omega_B)
+    thrust = SX.sym("thrust", 4)
+    
+    x = vertcat(p_WB, q_WB, v_WB, omega_B, thrust)
 
     # Define control inputs
     thrust_set = SX.sym("T_set", 4)  # Thrust produced by the rotors
@@ -91,15 +92,16 @@ def export_drone_ode_model() -> AcadosModel:
     q_WB_dot = SX.sym("q_WB_dot", 4)  # derivative of Orientation of the quadrotor as a unit quaternion (qw, qx, qy, qz)
     v_WB_dot = SX.sym("v_WB_dot", 3)  # derivative of Linear velocity of the quadrotor
     omega_B_dot = SX.sym("omega_B_dot", 3)  # derivative of Angular velocity of the quadrotor in body frame
-   
+    thrust_dot = SX.sym("thrust_dot", 4)
 
-    xdot = vertcat(p_WB_dot, q_WB_dot, v_WB_dot, omega_B_dot)
+    xdot = vertcat(p_WB_dot, q_WB_dot, v_WB_dot, omega_B_dot, thrust_dot)
 
     f_expl = vertcat(
         v_WB,
         functions.quat_derivative_casadi(q_WB, omega_B),
-        functions.quat_rotation_casadi(vertcat(0, 0, sum1(thrust_set)), q_WB) / m + vertcat(0, 0, g) + lin_acc_offset,
-        inv(J) @ ((P @ thrust_set - cross(omega_B, J @ omega_B))) + ang_acc_offset
+        functions.quat_rotation_casadi(vertcat(0, 0, sum1(thrust)), q_WB) / m + vertcat(0, 0, g) + lin_acc_offset,
+        inv(J) @ ((P @ thrust - cross(omega_B, J @ omega_B))) + ang_acc_offset,
+        thrust_set
     )
 
     f_impl = xdot - f_expl

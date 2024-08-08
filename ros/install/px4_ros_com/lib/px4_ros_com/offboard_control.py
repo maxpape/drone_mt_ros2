@@ -246,10 +246,12 @@ class OffboardControl(Node):
         # variables for ACADOS MPC
         self.N_horizon = 20
         self.Tf = 1
-        self.nx = 13
+        self.nx = 17
         self.nu = 4
         self.Tmax = 10
         self.Tmin = 0.5
+        self.Tmax_change = 6
+        self.Tmin_change = -6
         self.vmax = 4
         self.angular_vmax = 2
         self.max_angle_q = 0.35
@@ -289,6 +291,10 @@ class OffboardControl(Node):
                             self.d_y2,
                             self.d_y3,
                             self.c_tau])
+        
+        self.last_mpc_thrust = np.zeros(4)
+        
+        
         
         # imu data
         history_length = 20
@@ -793,14 +799,14 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([30,30,70])*10
-        Q_q= np.eye(1)*80
+        Q_p= np.diag([30,30,70])*50
+        Q_q= np.eye(1)*25
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
-        R_U = np.eye(4)*0.5
+        R_U = np.eye(4)*10
         
-        Q_p_final = np.diag([30,30,70])*8
-        Q_q_final = np.eye(1)*80
+        Q_p_final = np.diag([30,30,70])*30
+        Q_q_final = np.eye(1)*25
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
@@ -819,27 +825,30 @@ class OffboardControl(Node):
         
         
         # set constraints
+        Tmin_change = self.Tmin_change
+        Tmax_change = self.Tmax_change
         Tmin = self.Tmin
         Tmax = self.Tmax
+        
         vmax = self.vmax
         angular_vmax = self.angular_vmax
         
         # input constraints        
-        ocp.constraints.lbu = np.array([Tmin, Tmin, Tmin, Tmin])
-        ocp.constraints.ubu = np.array([Tmax, Tmax, Tmax, Tmax])
-        ocp.constraints.idxbu = np.array([0, 1, 2, 3])
+        #ocp.constraints.lbu = np.array([Tmin_change, Tmin_change, Tmin_change, Tmin_change])
+        #ocp.constraints.ubu = np.array([Tmax_change, Tmax_change, Tmax_change, Tmax_change])
+        #ocp.constraints.idxbu = np.array([0, 1, 2, 3])
          
         # state constraints     
-        ocp.constraints.lbx = np.array([-self.max_angle_q, -self.max_angle_q, -vmax, -vmax, -vmax, -angular_vmax, -angular_vmax, -angular_vmax])
-        ocp.constraints.ubx = np.array([+self.max_angle_q, +self.max_angle_q, +vmax, +vmax, +vmax, +angular_vmax, +angular_vmax, +angular_vmax])
-        ocp.constraints.idxbx = np.array([4, 5, 7, 8, 9, 10, 11, 12])
+        ocp.constraints.lbx = np.array([-self.max_angle_q, -self.max_angle_q, -vmax, -vmax, -vmax, -angular_vmax, -angular_vmax, -angular_vmax, Tmin, Tmin, Tmin, Tmin])
+        ocp.constraints.ubx = np.array([+self.max_angle_q, +self.max_angle_q, +vmax, +vmax, +vmax, +angular_vmax, +angular_vmax, +angular_vmax, Tmax, Tmax, Tmax, Tmax])
+        ocp.constraints.idxbx = np.array([4, 5, 7, 8, 9, 10, 11, 12, 13,14,15,16])
         
         
         
         
         # set initial state
     
-        ocp.constraints.x0 = self.current_state[:-5]
+        ocp.constraints.x0 = self.current_state[:-1]
                 
         
 
@@ -929,8 +938,9 @@ class OffboardControl(Node):
         Returns:
             float: mapped motor input
         """
-        output = (341.2561*input_value**0.5004472)/1100
+        output = (341.2561*input_value**0.5004472)
         
+        output = 1/950*output-150/950
         if output > 1:
             return 1
         elif output < 0:
@@ -994,7 +1004,7 @@ class OffboardControl(Node):
         
             
             
-        accel_vel = np.hstack((accel, v1, simu[1:]))
+        accel_vel = np.hstack((accel, v1, simx[1:,13:17]))
         
         history[lin_or_ang].append(accel_vel)
             
@@ -1152,8 +1162,9 @@ class OffboardControl(Node):
             if self.offboard_setpoint_counter < 100:
                 
                 # let solver warm up before actually publishing commands
-                
-                U = self.ocp_solver.solve_for_x0(x0_bar = self.current_state[:-5], fail_on_nonzero_status=False)
+                x0 = np.hstack((self.current_state[:-5], self.last_mpc_thrust))
+                U = self.ocp_solver.solve_for_x0(x0_bar = x0, fail_on_nonzero_status=False)
+                self.last_mpc_thrust = self.ocp_solver.get(1,'x')[13:17]
                 command = np.asarray([self.map_thrust(u) for u in U])
                 
                 self.publish_motor_command(np.zeros(4))
@@ -1226,12 +1237,19 @@ class OffboardControl(Node):
                 # set parameters and trajectory     
                 self.set_mpc_target_pos()
                 # solve OCP and publish motor command
-                U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-5], fail_on_nonzero_status=False)
+                #x0 = np.hstack((self.current_state[:-5], self.last_mpc_thrust))
+                U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-1], fail_on_nonzero_status=False)
+                #U_state = self.ocp_solver.get(1,'x')[13:17]
+                self.last_mpc_thrust = self.ocp_solver.get(1,'x')[13:17]
+                #U = U + self.current_state[-5:-1]
+                U = self.last_mpc_thrust
+                print('Force feedback: {}'.format(self.current_state[-5:-1]))
+                print('Requested force: {}'.format(U))
                 command = np.asarray([self.map_thrust(u) for u in U])
-                #command = np.zeros(4)
+                
                 self.publish_motor_command(command)
                 
-                U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-5], fail_on_nonzero_status=False)
+                U = self.ocp_solver_nominal.solve_for_x0(x0_bar = self.current_state[:-1], fail_on_nonzero_status=False)
                 # get simulated response for next #prediction_horizon time steps
                 simx = []
                 simu = []
