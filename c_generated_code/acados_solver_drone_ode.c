@@ -408,7 +408,7 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     p[10] = 0.0935;
     p[11] = 0.0935;
     p[12] = 0.0935;
-    p[13] = 0.000806428;
+    p[13] = 0.06;
     p[16] = 2;
     p[17] = 0.7071067811865476;
     p[20] = -0.7071067811865476;

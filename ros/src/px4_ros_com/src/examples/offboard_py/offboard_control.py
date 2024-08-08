@@ -272,7 +272,7 @@ class OffboardControl(Node):
         self.d_y1 = 0.0935
         self.d_y2 = 0.0935
         self.d_y3 = 0.0935
-        self.c_tau = 0.000806428
+        self.c_tau = 0.06
         self.hover_thrust = -self.g*self.m/4
         
         self.params = np.asarray([self.m,
@@ -797,7 +797,7 @@ class OffboardControl(Node):
         Q_q= np.eye(1)*80
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
-        R_U = np.eye(4)*0.5
+        R_U = np.eye(4)*0.2
         
         Q_p_final = np.diag([30,30,70])*8
         Q_q_final = np.eye(1)*80
