@@ -341,8 +341,8 @@ class OffboardControl(Node):
         
 
         
-        self.gp_prediction_horizon = 14
-        self.gp_multi_step_pred_history = 8
+        self.gp_prediction_horizon = 20
+        self.gp_multi_step_pred_history = 10
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.sim_x_last = self.current_state[:-1]
@@ -794,13 +794,13 @@ class OffboardControl(Node):
         
         # define weighing matrices
         Q_p= np.diag([30,30,70])*10
-        Q_q= np.eye(1)*80
+        Q_q= np.eye(1)*70
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
         R_U = np.eye(4)*0.2
         
-        Q_p_final = np.diag([30,30,70])*8
-        Q_q_final = np.eye(1)*80
+        Q_p_final = np.diag([30,30,70])*10
+        Q_q_final = np.eye(1)*70
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         

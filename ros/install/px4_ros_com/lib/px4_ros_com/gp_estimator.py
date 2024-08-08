@@ -49,9 +49,9 @@ class GP_estimator():
         kerns = [GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[0], lengthscale=self.length_hypers[0], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[1], lengthscale=self.length_hypers[1], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[2], lengthscale=self.length_hypers[2], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=2, variance=self.scale_hypers[3], lengthscale=self.length_hypers[3][:2], active_dims=[0,1], ARD=True),
-                 GPy.kern.RBF(input_dim=2, variance=self.scale_hypers[4], lengthscale=self.length_hypers[4][:2], active_dims=[0,1], ARD=True),
-                 GPy.kern.RBF(input_dim=2, variance=self.scale_hypers[5], lengthscale=self.length_hypers[5][:2], active_dims=[0,1], ARD=True)]
+                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[3], lengthscale=self.length_hypers[3], active_dims=[0,1,2,3,4,5], ARD=True),
+                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[4], lengthscale=self.length_hypers[4], active_dims=[0,1,2,3,4,5], ARD=True),
+                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[5], lengthscale=self.length_hypers[5], active_dims=[0,1,2,3,4,5], ARD=True)]
         lower_lenght = [1,1, 4,4,4,4, 1,1,4,4,4,4]
         upper_lenght = [10, 10, 20,20,20,20, 20,20,50,50,50,50]
         lower_lenght_z = [1,1,4,4,4,4]
@@ -62,8 +62,6 @@ class GP_estimator():
                 if i <= 2:
                     kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j], upper_lenght[j])
                 else:
-                    if j>1:
-                        continue
                     kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j+6], upper_lenght[j+6])
             #kerns[i].variance.constrain_bounded(0.5, 5)
             kerns[i].variance.fix()
@@ -75,9 +73,9 @@ class GP_estimator():
         self.models = [GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[0]),
                        GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[1]),
                        GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[2]),
-                       GPy.models.GPRegression(np.ones((1,2)), np.ones((1,1)), kerns[3]),
-                       GPy.models.GPRegression(np.ones((1,2)), np.ones((1,1)), kerns[4]),
-                       GPy.models.GPRegression(np.ones((1,2)), np.ones((1,1)), kerns[5])]
+                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[3]),
+                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[4]),
+                       GPy.models.GPRegression(np.ones((1,6)), np.ones((1,1)), kerns[5])]
         
         for i in range(len(self.models)):
             self.models[i].Gaussian_noise.variance = self.noise_variance_lin
@@ -92,8 +90,7 @@ class GP_estimator():
         
     def predict_accel(self, x, y, new_x, axis, optimize, dim=6):
         
-        if axis > 2:
-            x = x[:,:2]
+        
         self.models[axis].set_XY(x, y)
         
         #for i in range(dim):
