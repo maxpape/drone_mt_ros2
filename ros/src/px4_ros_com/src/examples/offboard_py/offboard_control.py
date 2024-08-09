@@ -342,7 +342,7 @@ class OffboardControl(Node):
 
         
         self.gp_prediction_horizon = 20
-        self.gp_multi_step_pred_history = 10
+        self.gp_multi_step_pred_history = 8
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.sim_x_last = self.current_state[:-1]
@@ -1437,6 +1437,7 @@ class OffboardControl(Node):
                 self.counter += 1
                 if self.counter == 6:
                     self.counter = 0
+                    #print(np.asarray(hist_sim_lin_z), np.asarray(error_lin_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)]))
                 #
                 
                 
