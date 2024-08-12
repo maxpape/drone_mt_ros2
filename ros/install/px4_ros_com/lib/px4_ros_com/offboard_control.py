@@ -341,8 +341,8 @@ class OffboardControl(Node):
         
 
         
-        self.gp_prediction_horizon = 20
-        self.gp_multi_step_pred_history = 8
+        self.gp_prediction_horizon = 14
+        self.gp_multi_step_pred_history = 7
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.sim_x_last = self.current_state[:-1]
@@ -410,8 +410,8 @@ class OffboardControl(Node):
             description='Speed of the motor',     # Description of the parameter
             additional_constraints='Range: -1.0 to 1.0',
             floating_point_range=[FloatingPointRange(
-                from_value=-1.0,  # Minimum value
-                to_value=1.0,     # Maximum value
+                from_value=0.0,  # Minimum value
+                to_value=1.5,     # Maximum value
                 step=0.01         # Step size (optional)
             )]# Constraints (optional)
         )
@@ -419,18 +419,18 @@ class OffboardControl(Node):
         self.declare_parameters(
         namespace='',
         parameters=[
-            ('motor_speed_0', 0.0, motor_speed_descriptor),
-            ('motor_speed_1', 0.0, motor_speed_descriptor),
-            ('motor_speed_2', 0.0, motor_speed_descriptor),
-            ('motor_speed_3', 0.0, motor_speed_descriptor)
+            ('motor_speed_0', 1.0, motor_speed_descriptor),
+            ('motor_speed_1', 1.0, motor_speed_descriptor),
+            ('motor_speed_2', 1.0, motor_speed_descriptor),
+            ('motor_speed_3', 1.0, motor_speed_descriptor)
         ]
         )
         
         
-        self.motor_speed_0 = 0
-        self.motor_speed_1 = 0
-        self.motor_speed_2 = 0
-        self.motor_speed_3 = 0
+        self.motor_speed_0 = 1.0
+        self.motor_speed_1 = 1.0
+        self.motor_speed_2 = 1.0
+        self.motor_speed_3 = 1.0
         
         
         # Declare a parameter with a descriptor for dynamic reconfiguration
@@ -793,14 +793,14 @@ class OffboardControl(Node):
         
         
         # define weighing matrices
-        Q_p= np.diag([30,30,70])*10
-        Q_q= np.eye(1)*70
+        Q_p= np.diag([30,30,70])*8
+        Q_q= np.eye(1)
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
-        R_U = np.eye(4)*0.2
+        R_U = np.eye(4)*0.3
         
-        Q_p_final = np.diag([30,30,70])*10
-        Q_q_final = np.eye(1)*70
+        Q_p_final = np.diag([30,30,70])*8
+        Q_q_final = np.eye(1)
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
@@ -1227,6 +1227,7 @@ class OffboardControl(Node):
                 self.set_mpc_target_pos()
                 # solve OCP and publish motor command
                 U = self.ocp_solver.solve_for_x0(x0_bar =  self.current_state[:-5], fail_on_nonzero_status=False)
+                U = U * np.array([self.motor_speed_0, self.motor_speed_1, self.motor_speed_2, self.motor_speed_3])
                 command = np.asarray([self.map_thrust(u) for u in U])
                 #command = np.zeros(4)
                 self.publish_motor_command(command)
@@ -1421,11 +1422,11 @@ class OffboardControl(Node):
                 
                 ## sace prediction results GP
                 lin_acc_offset = np.hstack((gp_prediction_lin_x[:-1,0].reshape(-1,1), gp_prediction_lin_y[:-1,0].reshape(-1,1), gp_prediction_lin_z[:-1,0].reshape(-1,1)))
-                self.lin_acc_offset = lin_acc_offset.clip(min=-15, max=15)
+                self.lin_acc_offset = lin_acc_offset.clip(min=-20, max=20)
                 self.gp_prediction_history_lin.append(lin_acc_offset)
                 
                 ang_acc_offset = np.hstack((gp_prediction_ang_x[:-1,0].reshape(-1,1), gp_prediction_ang_y[:-1,0].reshape(-1,1), gp_prediction_ang_z[:-1,0].reshape(-1,1)))
-                self.ang_acc_offset = ang_acc_offset.clip(min=-15, max=15)
+                self.ang_acc_offset = ang_acc_offset.clip(min=-20, max=20)
                 self.gp_prediction_history_ang.append(ang_acc_offset)
                 
                 
@@ -1437,7 +1438,7 @@ class OffboardControl(Node):
                 self.counter += 1
                 if self.counter == 6:
                     self.counter = 0
-                    #print(np.asarray(hist_sim_lin_z), np.asarray(error_lin_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_lin_ext[:,(2,5,6,7,8,9)]))
+                    #print(np.asarray(hist_sim_ang_z), np.asarray(error_ang_z[:,0].reshape(-1,1)), np.asarray(sim_accel_pred_ang_ext[:,(2,5,6,7,8,9)]))
                 #
                 
                 
