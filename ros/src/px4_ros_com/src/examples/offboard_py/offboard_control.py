@@ -794,13 +794,13 @@ class OffboardControl(Node):
         
         # define weighing matrices
         Q_p= np.diag([30,30,70])*8
-        Q_q= np.eye(1)
+        Q_q= np.eye(1)*2
         Q_mat = scipy.linalg.block_diag(Q_p, Q_q)
     
         R_U = np.eye(4)*0.3
         
         Q_p_final = np.diag([30,30,70])*8
-        Q_q_final = np.eye(1)
+        Q_q_final = np.eye(1)*2
         Q_mat_final = scipy.linalg.block_diag(Q_p_final, Q_q_final)
         
         
