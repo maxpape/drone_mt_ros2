@@ -1357,8 +1357,8 @@ class OffboardControl(Node):
                 hist_real_lin_x = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(0,3,12,13,14,15)], nan=0) 
                 error_lin_x = hist_real_lin_x - hist_sim_lin_x
                 
-                hist_sim_lin_y = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)]
-                hist_real_lin_y = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(0,3,12,13,14,15)], nan=0)
+                hist_sim_lin_y = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(1,4,6,7,8,9)]
+                hist_real_lin_y = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(1,4,12,13,14,15)], nan=0)
                 error_lin_y = hist_real_lin_y - hist_sim_lin_y
                 
                 hist_sim_lin_z = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(2,5,6,7,8,9)]
