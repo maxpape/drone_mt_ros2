@@ -343,8 +343,8 @@ class OffboardControl(Node):
         
 
         
-        self.gp_prediction_horizon = 6
-        self.gp_multi_step_pred_history = 6
+        self.gp_prediction_horizon = 14
+        self.gp_multi_step_pred_history = 7
         self.lin_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.ang_acc_offset = np.zeros((self.gp_prediction_horizon-1,3))
         self.sim_x_last = self.current_state[:-1]
@@ -1041,9 +1041,9 @@ class OffboardControl(Node):
         data = [real_hist[-1][0],real_hist[-1][1],real_hist[-1][2]]
         for i in range(self.gp_prediction_horizon-2):
             for j in range(3):
-                data.append(mpc_pred[index][-2-i][i, j])
+                data.append(mpc_pred[index][-1-i][i, j])
             for j in range(3):
-                data.append(mpc_pred[index][-2-i][i, j]+ gp_pred[index][-2-i][i, j])
+                data.append(mpc_pred[index][-1-i][i, j]+ gp_pred[index][-1-i][i, j])
         
         data = np.array(data)
         
@@ -1353,15 +1353,15 @@ class OffboardControl(Node):
                 
                 
                 # prepare linear prediction
-                hist_sim_lin_x = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)] 
+                hist_sim_lin_x = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history+1)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)] 
                 hist_real_lin_x = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(0,3,12,13,14,15)], nan=0) 
                 error_lin_x = hist_real_lin_x - hist_sim_lin_x
                 
-                hist_sim_lin_y = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(1,4,6,7,8,9)]
+                hist_sim_lin_y = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history+1)][:self.gp_multi_step_pred_history-1,(1,4,6,7,8,9)]
                 hist_real_lin_y = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(1,4,12,13,14,15)], nan=0)
                 error_lin_y = hist_real_lin_y - hist_sim_lin_y
                 
-                hist_sim_lin_z = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(2,5,6,7,8,9)]
+                hist_sim_lin_z = self.mpc_prediction_history_lin[-(self.gp_multi_step_pred_history+1)][:self.gp_multi_step_pred_history-1,(2,5,6,7,8,9)]
                 hist_real_lin_z = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(2,5,6,7,8,9)], nan=0)
                 error_lin_z = hist_real_lin_z - hist_sim_lin_z
 
@@ -1396,15 +1396,15 @@ class OffboardControl(Node):
                 
                 
                 # prepare angular prediction
-                hist_sim_ang_x = self.mpc_prediction_history_ang[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)]
+                hist_sim_ang_x = self.mpc_prediction_history_ang[-(self.gp_multi_step_pred_history+1)][:self.gp_multi_step_pred_history-1,(0,3,6,7,8,9)]
                 hist_real_ang_x = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(6,9,12,13,14,15)], nan=0)
                 error_ang_x = hist_real_ang_x - hist_sim_ang_x
 
-                hist_sim_ang_y = self.mpc_prediction_history_ang[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(1,4,6,7,8,9)]
+                hist_sim_ang_y = self.mpc_prediction_history_ang[-(self.gp_multi_step_pred_history+1)][:self.gp_multi_step_pred_history-1,(1,4,6,7,8,9)]
                 hist_real_ang_y = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(7,10,12,13,14,15)], nan=0)
                 error_ang_y = hist_real_ang_y - hist_sim_ang_y
                 
-                hist_sim_ang_z = self.mpc_prediction_history_ang[-(self.gp_multi_step_pred_history)][:self.gp_multi_step_pred_history-1,(2,5,6,7,8,9)]
+                hist_sim_ang_z = self.mpc_prediction_history_ang[-(self.gp_multi_step_pred_history+1)][:self.gp_multi_step_pred_history-1,(2,5,6,7,8,9)]
                 hist_real_ang_z = np.nan_to_num(np.asarray(list(self.imu_history)[-(self.gp_multi_step_pred_history-1):])[:,(8,11,12,13,14,15)], nan=0)
                 error_ang_z = hist_real_ang_z - hist_sim_ang_z
                

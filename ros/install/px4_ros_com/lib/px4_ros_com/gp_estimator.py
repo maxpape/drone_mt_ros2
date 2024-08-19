@@ -58,7 +58,7 @@ class GP_estimator():
         #lower_lenght = [0.5,0.1, 0.2,0.2,0.2,0.2, 2,0.1,0.1,0.1,0.1,0.1]
         #upper_lenght = [  10,  1,   5,  5,  5,  5, 10,  1,  1,  1,  1,  1]
         
-        lower_lenght = np.ones(12)*0.5
+        lower_lenght = np.ones(12)*1.5
         upper_lenght = np.ones(12)*10
         
         
@@ -124,14 +124,14 @@ class GP_estimator():
         if axis == 5:
             x = x[:,2:]
             new_x = new_x[:,2:]
-        
-        min_val = np.min(y)
-        max_val = np.max(y)
-        # Step 2: Calculate scale and offset
-        scale = 2 / (max_val - min_val)
-        offset = - (min_val * scale + 1)
-        
-        y = y * scale + offset
+        if axis == 2 or axis >= 3:
+            min_val = np.min(y)
+            max_val = np.max(y)
+            # Step 2: Calculate scale and offset
+            scale = 2 / (max_val - min_val)
+            offset = - (min_val * scale + 1)
+            
+            y = y * scale + offset
         
         
         
@@ -174,8 +174,8 @@ class GP_estimator():
             #print('-------------')
         mean, var = self.models[axis].predict(new_x)
         
-        
-        mean = (mean - offset) / scale
+        if axis == 2 or axis >= 3:
+            mean = (mean - offset) / scale
             
         return mean, var, lengthscale
     
