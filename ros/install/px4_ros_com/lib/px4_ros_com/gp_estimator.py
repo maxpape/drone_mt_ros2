@@ -48,43 +48,52 @@ class GP_estimator():
         
         kerns = [GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[0], lengthscale=self.length_hypers[0], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[1], lengthscale=self.length_hypers[1], active_dims=[0,1,2,3,4,5], ARD=True),
-                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[2], lengthscale=self.length_hypers[2], active_dims=[0,1,2,3,4,5], ARD=True),
+                 GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[2], lengthscale=[2,1,1,1,1,1], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[3], lengthscale=self.length_hypers[3], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=6, variance=self.scale_hypers[4], lengthscale=self.length_hypers[4], active_dims=[0,1,2,3,4,5], ARD=True),
                  GPy.kern.RBF(input_dim=4, variance=self.scale_hypers[5], lengthscale=[1,1,1,1], active_dims=[0,1,2,3], ARD=True)]
-        #lower_lenght = [1,1, 4,4,4,4, 1,1,4,4,4,4]
+        #lower_lenght = [2,1,1,1,1,1,2,1,1,1,1,1]
         #upper_lenght = [10, 10, 20,20,20,20, 20,20,50,50,50,50]
         
         #lower_lenght = [0.5,0.1, 0.2,0.2,0.2,0.2, 2,0.1,0.1,0.1,0.1,0.1]
         #upper_lenght = [  10,  1,   5,  5,  5,  5, 10,  1,  1,  1,  1,  1]
         
-        lower_lenght = np.ones(12)*1.5
-        upper_lenght = np.ones(12)*20
+        lower_lenght = np.ones(12)*0.5
+        upper_lenght = np.ones(12)*10
         
         
         for i in range(6):
             for j in range(6):
                 if i <= 2:
                     kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j], upper_lenght[j])
+                    kerns[i].variance.fix()
                 elif 5 > i >= 3:
                     kerns[i].lengthscale[[j]].constrain_bounded(lower_lenght[j+6], upper_lenght[j+6])
+                    kerns[i].variance.fix()
             #kerns[i].variance.constrain_bounded(0.5, 5)
-            kerns[i].variance.fix()
+            
         
         
         
         
         
+        #kerns[2].lengthscale[[0]].constrain_bounded(2,4)
+        #kerns[2].lengthscale[[1]].constrain_bounded(1,4)
+        #kerns[2].lengthscale[[2]].constrain_bounded(1,4)
+        #kerns[2].lengthscale[[3]].constrain_bounded(1,4)
+        #kerns[2].lengthscale[[4]].constrain_bounded(1,4)
+        #kerns[2].lengthscale[[5]].constrain_bounded(1,4)
+        kerns[2].variance.fix()
         
         
         
         
         
-        kerns[5].lengthscale[[0]].constrain_bounded(1.5,20)
-        kerns[5].lengthscale[[1]].constrain_bounded(1.5,20)
-        kerns[5].lengthscale[[2]].constrain_bounded(1.5,20)
-        kerns[5].lengthscale[[3]].constrain_bounded(1.5,20)
-        
+        kerns[5].lengthscale[[0]].constrain_bounded(0.5,10)
+        kerns[5].lengthscale[[1]].constrain_bounded(0.5,10)
+        kerns[5].lengthscale[[2]].constrain_bounded(0.5,10)
+        kerns[5].lengthscale[[3]].constrain_bounded(0.5,10)
+        kerns[5].variance.fix()
         
         
         
@@ -142,17 +151,17 @@ class GP_estimator():
             self.models[axis].Gaussian_noise.variance = self.noise_variance_lin
         else:
             if axis == 5:
-                self.models[axis].Gaussian_noise.variance = self.noise_variance_ang/100
+                self.models[axis].Gaussian_noise.variance = self.noise_variance_ang
             self.models[axis].Gaussian_noise.variance = self.noise_variance_ang
         
-        
+        lengthscale =[]
         if optimize :
             self.models[axis].optimize(max_iters=1, optimizer='scg')
             
+        
             
-            
-        #for i in range(dim):
-        #    self.length_hypers[axis][i] = self.models[axis].rbf.lengthscale[i]
+        for i in range(dim):
+            lengthscale.append(self.models[axis].rbf.lengthscale[i])
         
         #self.scale_hypers[axis] = self.models[axis].rbf.variance[0]
         
@@ -168,7 +177,7 @@ class GP_estimator():
         
         mean = (mean - offset) / scale
             
-        return mean, var
+        return mean, var, lengthscale
     
     
     

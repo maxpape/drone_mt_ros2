@@ -408,7 +408,7 @@ void drone_ode_acados_create_4_set_default_parameters(drone_ode_solver_capsule* 
     p[10] = 0.0935;
     p[11] = 0.0935;
     p[12] = 0.0935;
-    p[13] = 0.000806428;
+    p[13] = 0.06;
     p[16] = 2;
     p[17] = 0.7071067811865476;
     p[20] = -0.7071067811865476;
@@ -597,10 +597,10 @@ void drone_ode_acados_create_5_set_nlp_in(drone_ode_solver_capsule* capsule, con
     double* lbx = lubx;
     double* ubx = lubx + NBX;
     
-    lbx[0] = -1;
-    ubx[0] = 1;
-    lbx[1] = -1;
-    ubx[1] = 1;
+    lbx[0] = -0.35;
+    ubx[0] = 0.35;
+    lbx[1] = -0.35;
+    ubx[1] = 0.35;
     lbx[2] = -4;
     ubx[2] = 4;
     lbx[3] = -4;

@@ -10,6 +10,7 @@ import collections
 import functions
 import numpy as np
 import time
+import pandas as pd
 
 
 
@@ -65,7 +66,7 @@ class PathPlotter(Node):
         self.min_y = -1
         self.min_z = -1
 
-        
+        self.round_counter = 0
         
         self.fig, self.ax = plt.subplots()
         self.ax = self.fig.add_subplot(111, projection='3d')
@@ -77,6 +78,7 @@ class PathPlotter(Node):
         
     def update_yaw_ref(self, msg):
         self.last_yaw_ref = msg.x
+        self.last_real_yaw = msg.y
     def update_ref(self, msg):
         
         if self.is_first:
@@ -117,8 +119,8 @@ class PathPlotter(Node):
         
     def plot_coordinates(self, msg):
         pos = functions.NED_to_ENU(msg.position)
-        attitude = functions.NED_to_ENU(msg.q)
-        self.last_real_yaw = functions.quaternion_to_euler_numpy(attitude)[2]
+        #attitude = functions.NED_to_ENU(msg.q)
+        #self.last_real_yaw = functions.quaternion_to_euler_numpy(attitude)[2]
         
         self.last_real_x = pos[0]
         self.last_real_y = pos[1]
@@ -184,20 +186,50 @@ class PathPlotter(Node):
             
             #print('Average deviation of {:.4f} m over last {} samples. diff x: {}, diff y: {}, diff z: {}'.format(np.mean(diff), diff.shape[0], np.mean(np.abs(diff_vector[0])), np.mean(np.abs(diff_vector[1])), np.mean(np.abs(diff_vector[2]))))
             print('{:.4f},{:.4f},{:.4f},{:.4f},{:.2f}'.format(mean_eu, mean_x, mean_y, mean_z, mean_yaw) )  
+            #self.export_to_csv()
+            self.round_counter += 1
             
             
             self.x_coords_ref.clear()
             self.y_coords_ref.clear()
             self.z_coords_ref.clear()
+            self.yaw.clear()
             self.t_ref.clear()
             
             
             self.x_coords.clear()
             self.y_coords.clear()
             self.z_coords.clear()
+            self.yaw_ref.clear()
             self.t_real.clear()
         
+    def export_to_csv(self):
+        # Convert the deque objects to lists
+        x_coords_list = list(self.x_coords)
+        y_coords_list = list(self.y_coords)
+        z_coords_list = list(self.z_coords)
+        yaw_list = list(self.yaw)
+        x_coords_ref_list = list(self.x_coords_ref)
+        y_coords_ref_list = list(self.y_coords_ref)
+        z_coords_ref_list = list(self.z_coords_ref)
+        yaw_ref_list = list(self.yaw_ref)
         
+        # Create a DataFrame
+        df = pd.DataFrame({
+            'x': x_coords_list,
+            'y': y_coords_list,
+            'z': z_coords_list,
+            'yaw': yaw_list,
+            'x_ref': x_coords_ref_list,
+            'y_ref': y_coords_ref_list,
+            'z_ref': z_coords_ref_list,
+            'yaw_ref': yaw_ref_list
+        })
+        
+        name = './flight_log/trajectory_round_{}.csv'.format(self.round_counter)
+        # Export to CSV
+        df.to_csv(name, index=False)
+        #print('Coordinates have been exported to coordinates.csv')  
         
         
         
