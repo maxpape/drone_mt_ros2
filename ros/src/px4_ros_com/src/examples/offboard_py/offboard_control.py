@@ -285,7 +285,7 @@ class OffboardControl(Node):
         self.d_y1 = 0.072
         self.d_y2 = 0.072
         self.d_y3 = 0.072
-        self.c_tau = 0.0000007
+        self.c_tau = 0.04
         self.hover_thrust = -self.g*self.m/4
         
         self.params = np.asarray([self.m,
